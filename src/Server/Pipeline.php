@@ -8,7 +8,7 @@
 
 declare(strict_types=1);
 
-namespace Woss\Http;
+namespace Woss\Http\Server;
 
 use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
