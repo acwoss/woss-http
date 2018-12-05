@@ -49,9 +49,9 @@ abstract class Message implements MessageInterface
      * A string deve conter apenas o número da versão (ex. "1.1", "1.0").
      *
      * @param string $version Versão do protocolo HTTP
-     * @return MessageInterface Mensagem HTTP com a nova versão de protocolo
+     * @return static Mensagem HTTP com a nova versão de protocolo
      */
-    public function withProtocolVersion($version): MessageInterface
+    public function withProtocolVersion($version)
     {
         // TODO: Fazer a validação da versão do protocolo
         $new = clone $this;
@@ -114,20 +114,6 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Retorna a forma normalizada do nome do cabeçalho.
-     *
-     * Como o nome do cabeçalho é insensível à maiúsculas e minúsculas, a forma normalizada, com a litra inicial de
-     * cada palavra maiúscula e o resto minúscula, será utilizada para efeitos de comparação.
-     *
-     * @param string $name Nome do cabeçalho
-     * @return string Forma normalizada do nome do cabeçalho
-     */
-    private function normalizeHeaderName($name): string
-    {
-        return implode('-', array_map('ucfirst', explode('-', $name)));
-    }
-
-    /**
      * Retorna os valores de um cabeçalho identificado pelo seu nome.
      *
      * Este método retorna um array com todos os valores relacionados ao cabeçalho. O nome do cabeçalho é insensível à
@@ -157,10 +143,10 @@ abstract class Message implements MessageInterface
      *
      * @param string $name Nome do cabeçalho a ser adicionado
      * @param string|string[] Valor(es) a serem adicionados no cabeçalho
-     * @return MessageInterface Mensagem HTTP com o novo valor do cabeçalho adicionado
+     * @return static Mensagem HTTP com o novo valor do cabeçalho adicionado
      * @throws InvalidArgumentException Quando o nome ou valor forem inválidos
      */
-    public function withAddedHeader($name, $value): MessageInterface
+    public function withAddedHeader($name, $value)
     {
         if (!$this->hasHeader($name)) {
             return $this->withHeader($name, $value);
@@ -186,10 +172,10 @@ abstract class Message implements MessageInterface
      *
      * @param string $name Nome do cabeçalho a ser substituído
      * @param string|string[] $value Valor(es) relacionado ao cabeçalho
-     * @return MessageInterface Mensagem HTTP com os valores do cabeçalho substituídos
+     * @return static Mensagem HTTP com os valores do cabeçalho substituídos
      * @throws InvalidArgumentException Quando o nome ou o valor do cabeçalho é inválido
      */
-    public function withHeader($name, $value): MessageInterface
+    public function withHeader($name, $value)
     {
         // TODO: fazer a validação do nome do cabeçalho
         $name = $this->normalizeHeaderName($name);
@@ -207,9 +193,9 @@ abstract class Message implements MessageInterface
      * Todos os outros cabeçalhos permanecerão inalterados.
      *
      * @param string $name Nome do cabeçalho a ser removido na nova mensagem
-     * @return MessageInterface Mensagem HTTP sem o cabeçalho
+     * @return static Mensagem HTTP sem o cabeçalho
      */
-    public function withoutHeader($name): MessageInterface
+    public function withoutHeader($name)
     {
         $new = clone $this;
 
@@ -235,14 +221,28 @@ abstract class Message implements MessageInterface
      * Retorna uma instância substituindo o corpo da mensagem HTTP.
      *
      * @param StreamInterface $body Corpo a ser utilizado pela nova mensagem HTTP
-     * @return MessageInterface Mensagem HTTP com o novo corpo
+     * @return static Mensagem HTTP com o novo corpo
      * @throws InvalidArgumentException Quando o novo corpo é inválido
      */
-    public function withBody(StreamInterface $body): MessageInterface
+    public function withBody(StreamInterface $body)
     {
         $new = clone $this;
         $new->body = $body;
 
         return $new;
+    }
+
+    /**
+     * Retorna a forma normalizada do nome do cabeçalho.
+     *
+     * Como o nome do cabeçalho é insensível à maiúsculas e minúsculas, a forma normalizada, com a litra inicial de
+     * cada palavra maiúscula e o resto minúscula, será utilizada para efeitos de comparação.
+     *
+     * @param string $name Nome do cabeçalho
+     * @return string Forma normalizada do nome do cabeçalho
+     */
+    private function normalizeHeaderName($name): string
+    {
+        return implode('-', array_map('ucfirst', explode('-', $name)));
     }
 }
