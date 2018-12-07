@@ -17,26 +17,32 @@ use Psr\Http\Message\StreamInterface;
 abstract class Message implements MessageInterface
 {
     /**
-     * @var string Número da versão do protocolo HTTP
+     * @var string
      */
     private $protocol = '1.1';
 
     /**
-     * @var string[][] Conjunto de valores associados aos cabeçalhos HTTP
+     * @var string[][]
      */
     private $headers = [];
 
     /**
-     * @var StreamInterface Corpo da mensagem HTTP
+     * @var StreamInterface
      */
     private $body;
 
     /**
-     * Retorna a versão do protocolo HTTP como string.
-     *
-     * A string deve conter apenas o número da versão (ex. "1.1", "1.0").
-     *
-     * @return string Versão do protocolo HTTP
+     * @param string $body
+     * @param array $headers
+     */
+    protected function __construct($body = 'php://memory', array $headers = [])
+    {
+        $this->setBody($body, 'wb+');
+        $this->setHeaders($headers);
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function getProtocolVersion(): string
     {
@@ -44,29 +50,18 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Retorna uma instância com a versão do protocolo HTTP especificado.
-     *
-     * A string deve conter apenas o número da versão (ex. "1.1", "1.0").
-     *
-     * @param string $version Versão do protocolo HTTP
-     * @return static Mensagem HTTP com a nova versão de protocolo
+     * {@inheritdoc}
      */
     public function withProtocolVersion($version)
     {
-        // TODO: Fazer a validação da versão do protocolo
         $new = clone $this;
-        $new->protocol = $version;
+        $new->setProtocolVersion($version);
 
         return $new;
     }
 
     /**
-     * Retorna todos os cabeçalhos da mensagem.
-     *
-     * As chaves representam os nomes dos cabeçalhos da mensagem e cada valor é um array de strings associadas ao
-     * cabeçalho.
-     *
-     * @return string[][] Retorna um array associativo com os cabeçalhos da mensagem.
+     * {@inheritdoc}
      */
     public function getHeaders(): array
     {
@@ -74,19 +69,7 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Retorna os valores relacionados ao cabeçalho identificado pelo nome, separados por uma vírgula.
-     *
-     * Este método retorna todos os valores relacionados ao cabeçalho identificado pelo nome em uma string concatenada
-     * separados por uma vírgula. O nome do cabeçalho é insensível à maiúsculas e minúsculas.
-     *
-     * NOTA: nem todos os cabeçalhos podem ser devidamente representados por valores separados por vírgula. Para
-     * esses cabeçalhos recomenda-se o uso de getGeader() e implemente sua própria lógica de concatenação.
-     *
-     * Se o cabeçalho não existir na mensagem, uma string vazia será retornada.
-     *
-     * @param string $name Nome do cabeçalho a ser retornado
-     * @return string Valores relacionados ao cabeçalho concatenados e separados por vírgula. String vazia se não
-     *     existir.
+     * {@inheritdoc}
      */
     public function getHeaderLine($name): string
     {
@@ -98,13 +81,7 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Verifica se um cabeçalho existe na mensagem identificado pelo seu nome.
-     *
-     * O nome do cabeçalho é insensível à maiúsculas e minúsculas, portanto, dois nomes que se diferenciam apenas na
-     * caixa serão considerados o mesmo cabeçalho.
-     *
-     * @param string $name Nome do cabeçalho a ser verificado
-     * @return bool Retorna verdadeiro se existir, falso caso contrário
+     * {@inheritdoc}
      */
     public function hasHeader($name): bool
     {
@@ -114,15 +91,7 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Retorna os valores de um cabeçalho identificado pelo seu nome.
-     *
-     * Este método retorna um array com todos os valores relacionados ao cabeçalho. O nome do cabeçalho é insensível à
-     * maiúsculas e minúsculas.
-     *
-     * Se o cabeçalho informado não existir, um array vazio será retornado.
-     *
-     * @param string $name Nome do cabeçalho a ser retornado
-     * @return string[] Conjunto com todos os valores relacionados ao cabeçalho
+     * {@inheritdoc}
      */
     public function getHeader($name): array
     {
@@ -136,15 +105,7 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Retorna uma instância com o valor adicionado ao cabeçalho da mensagem atual.
-     *
-     * Valores existentes para o cabeçalho informado serão mantidos na mensagem. O novo valor será apenas adicionado
-     * ao cabeçalho; se esse ainda não existir na mensagem, será criado.
-     *
-     * @param string $name Nome do cabeçalho a ser adicionado
-     * @param string|string[] Valor(es) a serem adicionados no cabeçalho
-     * @return static Mensagem HTTP com o novo valor do cabeçalho adicionado
-     * @throws InvalidArgumentException Quando o nome ou valor forem inválidos
+     * {@inheritdoc}
      */
     public function withAddedHeader($name, $value)
     {
@@ -168,32 +129,18 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Retorna uma instância substituindo o cabeçalho identificado pelo nome.
-     *
-     * @param string $name Nome do cabeçalho a ser substituído
-     * @param string|string[] $value Valor(es) relacionado ao cabeçalho
-     * @return static Mensagem HTTP com os valores do cabeçalho substituídos
-     * @throws InvalidArgumentException Quando o nome ou o valor do cabeçalho é inválido
+     * {@inheritdoc}
      */
     public function withHeader($name, $value)
     {
-        // TODO: fazer a validação do nome do cabeçalho
-        $name = $this->normalizeHeaderName($name);
         $new = clone $this;
-        // TODO: fazer a validação dos valores do cabeçalho
-        $new->headers[$name] = $value;
+        $new->setHeader($name, $value);
 
         return $new;
     }
 
     /**
-     * Returna uma instância sem o cabeçalho identificado pelo nome.
-     *
-     * O cabeçalho identificado pelo nome, insensível à maiúsculas e minúsculas, será removido da nova mensagem HTTP.
-     * Todos os outros cabeçalhos permanecerão inalterados.
-     *
-     * @param string $name Nome do cabeçalho a ser removido na nova mensagem
-     * @return static Mensagem HTTP sem o cabeçalho
+     * {@inheritdoc}
      */
     public function withoutHeader($name)
     {
@@ -208,9 +155,7 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Retorna o corpo da mensagem HTTP.
-     *
-     * @return StreamInterface Corpo da mensagem HTTP
+     * {@inheritdoc}
      */
     public function getBody(): StreamInterface
     {
@@ -218,31 +163,101 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * Retorna uma instância substituindo o corpo da mensagem HTTP.
-     *
-     * @param StreamInterface $body Corpo a ser utilizado pela nova mensagem HTTP
-     * @return static Mensagem HTTP com o novo corpo
-     * @throws InvalidArgumentException Quando o novo corpo é inválido
+     * {@inheritdoc}
      */
     public function withBody(StreamInterface $body)
     {
         $new = clone $this;
-        $new->body = $body;
+        $new->setBody($body);
 
         return $new;
     }
 
     /**
-     * Retorna a forma normalizada do nome do cabeçalho.
-     *
-     * Como o nome do cabeçalho é insensível à maiúsculas e minúsculas, a forma normalizada, com a litra inicial de
-     * cada palavra maiúscula e o resto minúscula, será utilizada para efeitos de comparação.
-     *
-     * @param string $name Nome do cabeçalho
-     * @return string Forma normalizada do nome do cabeçalho
+     * {@inheritdoc}
      */
     private function normalizeHeaderName($name): string
     {
         return implode('-', array_map('ucfirst', explode('-', $name)));
+    }
+
+    /**
+     * @param $stream
+     * @param string $modeIfNotInstance
+     * @return StreamInterface
+     * @throws InvalidArgumentException
+     */
+    protected function getStream($stream, string $modeIfNotInstance): StreamInterface
+    {
+        if ($stream instanceof StreamInterface) {
+            return $stream;
+        }
+
+        if (!is_string($stream) && !is_resource($stream)) {
+            throw new InvalidArgumentException();
+        }
+
+        return new Stream($stream, $modeIfNotInstance);
+    }
+
+    /**
+     * @param array $originalHeaders
+     * @return static
+     */
+    protected function setHeaders(array $originalHeaders)
+    {
+        foreach ($originalHeaders as $name => $value) {
+            $this->setHeader($name, $value);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param $name
+     * @param $value
+     * @return static
+     */
+    protected function setHeader($name, $value)
+    {
+        if (!is_array($value)) {
+            $value = [$value];
+        }
+
+        $name = $this->normalizeHeaderName($name);
+        $this->headers[$name] = $value;
+
+        return $this;
+    }
+
+    /**
+     * @param string|resource|StreamInterface $body
+     * @param string $mode
+     * @return static
+     */
+    protected function setBody($body, string $mode = 'r')
+    {
+        if (!is_string($body) && !is_resource($body) && !($body instanceof StreamInterface)) {
+            throw new InvalidArgumentException();
+        }
+
+        if (is_string($body) || is_resource($body)) {
+            $body = new Stream($body, $mode);
+        }
+
+        $this->body = $body;
+
+        return $this;
+    }
+
+    /**
+     * @param $version
+     * @return $this
+     */
+    protected function setProtocolVersion($version)
+    {
+        $this->protocol = $version;
+
+        return $this;
     }
 }
