@@ -15,17 +15,17 @@ use Psr\Http\Message\ResponseInterface;
 class Response extends Message implements ResponseInterface
 {
     /**
-     * @var string Mensagem de estado da resposta HTTP
+     * @var string
      */
     private $reasonPhrase;
 
     /**
-     * @var int Código de estado da resposta HTTP
+     * @var int
      */
     private $statusCode;
 
     /**
-     * @var array Mapa com as mensagens de cada código de estado
+     * @var array
      */
     private $phrases = [
         100 => 'Continue',
@@ -96,12 +96,14 @@ class Response extends Message implements ResponseInterface
         599 => 'Network Connect Timeout Error',
     ];
 
+    public function __construct($body = 'php://memory', int $status = 200, array $headers = [])
+    {
+        parent::__construct($body, $headers);
+        $this->setStatus($status);
+    }
+
     /**
-     * Retorna o código de estado da resposta.
-     *
-     * O código de estado é um número inteiro de 3 dígitos.
-     *
-     * @return int Código do estado da resposta
+     * {@inheritdoc}
      */
     public function getStatusCode(): int
     {
@@ -109,19 +111,30 @@ class Response extends Message implements ResponseInterface
     }
 
     /**
-     * Retorna uma instância com o código de estado informado.
-     *
-     * Se nenhuma mensagem de estado for informada, será utilizada a mensagem padrão relacionada ao código de estado,
-     * conforme definida na RFC 7231 ou IANA.
-     *
-     * @link http://tools.ietf.org/html/rfc7231#section-6
-     * @link http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
-     * @param int $code Código de estado a ser utilizado
-     * @param string $reasonPhrase Mensagem de estado a ser utilizada
-     * @return static Resposta com o novo código de estado
-     * @throws InvalidArgumentException Quando o código de estado é inválido
+     * {@inheritdoc}
      */
     public function withStatus($code, $reasonPhrase = '')
+    {
+        $new = clone $this;
+        $new->setStatus($code, $reasonPhrase);
+
+        return $new;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getReasonPhrase()
+    {
+        return $this->reasonPhrase;
+    }
+
+    /**
+     * @param $code
+     * @param $reasonPhrase
+     * @return static
+     */
+    protected function setStatus($code, $reasonPhrase = '')
     {
         if (!is_numeric($code) || is_float($code) || $code < 100 || $code > 599
         ) {
@@ -141,22 +154,9 @@ class Response extends Message implements ResponseInterface
             $reasonPhrase = $this->phrases[$code];
         }
 
-        $new = clone $this;
-        $new->reasonPhrase = $reasonPhrase;
-        $new->statusCode = (int)$code;
+        $this->reasonPhrase = $reasonPhrase;
+        $this->statusCode = (int)$code;
 
-        return $new;
-    }
-
-    /**
-     * Retorna a mensagem de estado da resposta HTTP.
-     *
-     * @link http://tools.ietf.org/html/rfc7231#section-6
-     * @link http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
-     * @return string Mensagem de estado da resposta
-     */
-    public function getReasonPhrase()
-    {
-        return $this->reasonPhrase;
+        return $this;
     }
 }
