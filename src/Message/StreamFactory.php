@@ -15,48 +15,30 @@ use Psr\Http\Message\StreamInterface;
 class StreamFactory implements StreamFactoryInterface
 {
     /**
-     * Create a new stream from a string.
-     *
-     * The stream SHOULD be created with a temporary resource.
-     *
-     * @param string $content String content with which to populate the stream.
-     *
-     * @return StreamInterface
+     * {@inheritDoc}
      */
     public function createStream(string $content = ''): StreamInterface
     {
-        // TODO: Implement createStream() method.
+        $resource = fopen('php://temp', 'r+');
+        fwrite($resource, $content);
+        rewind($resource);
+
+        return $this->createStreamFromResource($resource);
     }
 
     /**
-     * Create a stream from an existing file.
-     *
-     * The file MUST be opened using the given mode, which may be any mode
-     * supported by the `fopen` function.
-     *
-     * The `$filename` MAY be any string supported by `fopen()`.
-     *
-     * @param string $filename Filename or stream URI to use as basis of stream.
-     * @param string $mode Mode with which to open the underlying filename/stream.
-     *
-     * @return StreamInterface
+     * {@inheritDoc}
      */
-    public function createStreamFromFile(string $filename, string $mode = 'r'): StreamInterface
+    public function createStreamFromFile(string $file, string $mode = 'r'): StreamInterface
     {
-        // TODO: Implement createStreamFromFile() method.
+        return new Stream($file, $mode);
     }
 
     /**
-     * Create a new stream from an existing resource.
-     *
-     * The stream MUST be readable and may be writable.
-     *
-     * @param resource $resource PHP resource to use as basis of stream.
-     *
-     * @return StreamInterface
+     * {@inheritDoc}
      */
     public function createStreamFromResource($resource): StreamInterface
     {
-        // TODO: Implement createStreamFromResource() method.
+        return new Stream($resource);
     }
 }
