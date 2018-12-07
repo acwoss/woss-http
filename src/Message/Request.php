@@ -10,32 +10,51 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
 use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
 
 class Request extends Message implements RequestInterface
 {
     /**
-     * @var string Alvo da requisição HTTP.
+     * @var string
      */
     private $requestTarget;
 
     /**
-     * @var UriInterface Instância de URI
+     * @var UriInterface
      */
     private $uri;
 
     /**
-     * @var string Método da requisição HTTP
+     * @var string
      */
     private $method;
 
     /**
-     * Retorna o alvo da requisição HTTP.
-     *
-     * Se nenhuma URI estiver disponível e nenhum alvo de requisição foi definido, será retornado a string "/".
-     *
-     * @return string Alvo da requisição HTTP
+     * @param null|string|UriInterface $uri
+     * @param null|string $method
+     * @param string|resource|StreamInterface $body
+     * @param array $headers Headers
+     * @throws InvalidArgumentException
+     */
+    public function __construct($uri = null, string $method = null, $body = 'php://temp', array $headers = [])
+    {
+        if ($method !== null) {
+            $this->setMethod($method);
+        }
+
+        parent::__construct($body, $headers);
+        $this->uri = $this->createUri($uri);
+
+        if (!$this->hasHeader('Host') && $this->uri->getHost()) {
+            $this->setHeader('Host', $this->getHostFromUri());
+        }
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function getRequestTarget()
     {
@@ -57,11 +76,7 @@ class Request extends Message implements RequestInterface
     }
 
     /**
-     * Retorna uma instância com o alvo de requisição informado.
-     *
-     * @link http://tools.ietf.org/html/rfc7230#section-5.3
-     * @param mixed $requestTarget
-     * @return RequestInterface
+     * {@inheritdoc}
      */
     public function withRequestTarget($requestTarget): RequestInterface
     {
@@ -73,9 +88,7 @@ class Request extends Message implements RequestInterface
     }
 
     /**
-     * Retorna o método HTTP da requisição.
-     *
-     * @return string Método da requisição HTTP
+     * {@inheritdoc}
      */
     public function getMethod()
     {
@@ -83,13 +96,7 @@ class Request extends Message implements RequestInterface
     }
 
     /**
-     * Retorna uma instância com o método informado.
-     *
-     * Como os métodos HTTP são geralmente representados em letras maiúsculas e o nome do método é sensível à
-     * maiúsculas e minúsculas, o método não modificará o nome do método informado.
-     *
-     * @param string $method Nome do método HTTP a ser utilizado
-     * @return RequestInterface
+     * {@inheritdoc}
      */
     public function withMethod($method): RequestInterface
     {
@@ -101,10 +108,7 @@ class Request extends Message implements RequestInterface
     }
 
     /**
-     * Retorna a instância de URI.
-     *
-     * @link http://tools.ietf.org/html/rfc3986#section-4.3
-     * @return UriInterface Instância de URI que representa a requisição HTTP
+     * {@inheritdoc}
      */
     public function getUri(): UriInterface
     {
@@ -112,20 +116,7 @@ class Request extends Message implements RequestInterface
     }
 
     /**
-     * Retorna uma instância com a URI informada.
-     *
-     * Quando o parâmetro `$preserveHost` é definido como `true`:
-     *
-     * - Se o cabeçalho Host não estiver definido ou estiver vazio e a instância URI possuir o componente Host
-     *   o cabeçalho Host será atualizado para o valor em URI.
-     * - Se o cabeçalho Host não estiver definido ou estiver vazio e a instância URI não possuir o componente Host
-     *   o cabeçalho Host não será atualizado.
-     * - Se o cabeçalho estiver definido e não for vazio, seu valor não será alterado.
-     *
-     * @link http://tools.ietf.org/html/rfc3986#section-4.3
-     * @param UriInterface $uri Instância de URI a ser utilizada
-     * @param bool $preserveHost Preserva o estado do cabeçalho Host
-     * @return RequestInterface Requisição HTTP com a nova instância URI
+     * {@inheritdoc}
      */
     public function withUri(UriInterface $uri, $preserveHost = false): RequestInterface
     {
@@ -149,5 +140,57 @@ class Request extends Message implements RequestInterface
         $new = $new->withHeader('Host', $host);
 
         return $new;
+    }
+
+    /**
+     * @param string $method
+     * @return static
+     * @throws InvalidArgumentException
+     */
+    protected function setMethod($method)
+    {
+        if (!is_string($method)) {
+            throw new InvalidArgumentException();
+        }
+
+        if (!preg_match('/^[!#$%&\'*+.^_`\|~0-9a-z-]+$/i', $method)) {
+            throw new InvalidArgumentException();
+        }
+
+        $this->method = $method;
+
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    protected function getHostFromUri(): string
+    {
+        $host = $this->uri->getHost();
+        $host .= $this->uri->getPort() ? ':' . $this->uri->getPort() : '';
+
+        return $host;
+    }
+
+    /**
+     * @param $uri
+     * @return UriInterface
+     */
+    protected function createUri($uri): UriInterface
+    {
+        if ($uri instanceof UriInterface) {
+            return $uri;
+        }
+
+        if (is_string($uri)) {
+            return new Uri($uri);
+        }
+
+        if ($uri === null) {
+            return new Uri();
+        }
+
+        throw new InvalidArgumentException();
     }
 }
