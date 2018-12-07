@@ -5,201 +5,347 @@
  * @author Anderson Carlos Woss <anderson@woss.eng.br>
  * @license https://github.com/acwoss/woss-http/blob/master/LICENSE MIT License
  */
+
 declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
 use Psr\Http\Message\StreamInterface;
+use RuntimeException;
+use function array_key_exists;
+use function fclose;
+use function feof;
+use function fopen;
+use function fread;
+use function fseek;
+use function fstat;
+use function ftell;
+use function fwrite;
+use function get_resource_type;
+use function is_int;
+use function is_resource;
+use function is_string;
+use function restore_error_handler;
+use function set_error_handler;
+use function stream_get_contents;
+use function stream_get_meta_data;
+use function strstr;
+use const E_WARNING;
+use const SEEK_SET;
 
 class Stream implements StreamInterface
 {
     /**
-     * Reads all data from the stream into a string, from the beginning to end.
-     *
-     * This method MUST attempt to seek to the beginning of the stream before
-     * reading data and read the stream until the end is reached.
-     *
-     * Warning: This could attempt to load a large amount of data into memory.
-     *
-     * This method MUST NOT raise an exception in order to conform with PHP's
-     * string casting operations.
-     *
-     * @see http://php.net/manual/en/language.oop5.magic.php#object.tostring
-     * @return string
+     * @var resource|null
+     */
+    private $resource;
+
+    /**
+     * @var string|resource
+     */
+    private $stream;
+
+    /**
+     * @param string|resource $stream
+     * @param string $mode Mode with which to open stream
+     * @throws InvalidArgumentException
+     */
+    public function __construct($stream, string $mode = 'r')
+    {
+        $this->setStream($stream, $mode);
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function __toString()
     {
-        // TODO: Implement __toString() method.
+        if (!$this->isReadable()) {
+            return '';
+        }
+
+        try {
+            if ($this->isSeekable()) {
+                $this->rewind();
+            }
+
+            return $this->getContents();
+        } catch (RuntimeException $e) {
+            return '';
+        }
     }
 
     /**
-     * Closes the stream and any underlying resources.
-     *
-     * @return void
+     * {@inheritdoc}
      */
     public function close()
     {
-        // TODO: Implement close() method.
+        if (!$this->resource) {
+            return;
+        }
+
+        $resource = $this->detach();
+
+        fclose($resource);
     }
 
     /**
-     * Separates any underlying resources from the stream.
-     *
-     * After the stream has been detached, the stream is in an unusable state.
-     *
-     * @return resource|null Underlying PHP stream, if any
+     * {@inheritdoc}
      */
     public function detach()
     {
-        // TODO: Implement detach() method.
+        $resource = $this->resource;
+        $this->resource = null;
+
+        return $resource;
     }
 
     /**
-     * Get the size of the stream if known.
-     *
-     * @return int|null Returns the size in bytes if known, or null if unknown.
+     * {@inheritdoc}
      */
-    public function getSize()
+    public function getSize(): ?int
     {
-        // TODO: Implement getSize() method.
+        if (null === $this->resource) {
+            return null;
+        }
+
+        $stats = fstat($this->resource);
+
+        if ($stats !== false) {
+            return $stats['size'];
+        }
+
+        return null;
     }
 
     /**
-     * Returns the current position of the file read/write pointer
-     *
-     * @return int Position of the file pointer
-     * @throws \RuntimeException on error.
+     * {@inheritdoc}
      */
     public function tell()
     {
-        // TODO: Implement tell() method.
+        if (!$this->resource) {
+            throw new RuntimeException();
+        }
+
+        $result = ftell($this->resource);
+
+        if (!is_int($result)) {
+            throw new RuntimeException();
+        }
+
+        return $result;
     }
 
     /**
-     * Returns true if the stream is at the end of the stream.
-     *
-     * @return bool
+     * {@inheritdoc}
      */
     public function eof()
     {
-        // TODO: Implement eof() method.
+        if (!$this->resource) {
+            return true;
+        }
+
+        return feof($this->resource);
     }
 
     /**
-     * Returns whether or not the stream is seekable.
-     *
-     * @return bool
+     * {@inheritdoc}
      */
     public function isSeekable()
     {
-        // TODO: Implement isSeekable() method.
+        if (!$this->resource) {
+            return false;
+        }
+
+        $meta = stream_get_meta_data($this->resource);
+
+        return $meta['seekable'];
     }
 
     /**
-     * Seek to a position in the stream.
-     *
-     * @link http://www.php.net/manual/en/function.fseek.php
-     * @param int $offset Stream offset
-     * @param int $whence Specifies how the cursor position will be calculated
-     *     based on the seek offset. Valid values are identical to the built-in
-     *     PHP $whence values for `fseek()`.  SEEK_SET: Set position equal to
-     *     offset bytes SEEK_CUR: Set position to current location plus offset
-     *     SEEK_END: Set position to end-of-stream plus offset.
-     * @throws \RuntimeException on failure.
+     * {@inheritdoc}
      */
     public function seek($offset, $whence = SEEK_SET)
     {
-        // TODO: Implement seek() method.
+        if (!$this->resource) {
+            throw new RuntimeException();
+        }
+
+        if (!$this->isSeekable()) {
+            throw new RuntimeException();
+        }
+
+        $result = fseek($this->resource, $offset, $whence);
+
+        if (0 !== $result) {
+            throw new RuntimeException();
+        }
     }
 
     /**
-     * Seek to the beginning of the stream.
-     *
-     * If the stream is not seekable, this method will raise an exception;
-     * otherwise, it will perform a seek(0).
-     *
-     * @see seek()
-     * @link http://www.php.net/manual/en/function.fseek.php
-     * @throws \RuntimeException on failure.
+     * {@inheritdoc}
      */
     public function rewind()
     {
-        // TODO: Implement rewind() method.
+        $this->seek(0);
     }
 
     /**
-     * Returns whether or not the stream is writable.
-     *
-     * @return bool
+     * {@inheritdoc}
      */
     public function isWritable()
     {
-        // TODO: Implement isWritable() method.
+        if (!$this->resource) {
+            return false;
+        }
+
+        $meta = stream_get_meta_data($this->resource);
+        $mode = $meta['mode'];
+
+        return (
+            strstr($mode, 'x')
+            || strstr($mode, 'w')
+            || strstr($mode, 'c')
+            || strstr($mode, 'a')
+            || strstr($mode, '+')
+        );
     }
 
     /**
-     * Write data to the stream.
-     *
-     * @param string $string The string that is to be written.
-     * @return int Returns the number of bytes written to the stream.
-     * @throws \RuntimeException on failure.
+     * {@inheritdoc}
      */
     public function write($string)
     {
-        // TODO: Implement write() method.
+        if (!$this->resource) {
+            throw new RuntimeException();
+        }
+
+        if (!$this->isWritable()) {
+            throw new RuntimeException();
+        }
+
+        $result = fwrite($this->resource, $string);
+
+        if (false === $result) {
+            throw new RuntimeException();
+        }
+
+        return $result;
     }
 
     /**
-     * Returns whether or not the stream is readable.
-     *
-     * @return bool
+     * {@inheritdoc}
      */
     public function isReadable()
     {
-        // TODO: Implement isReadable() method.
+        if (!$this->resource) {
+            return false;
+        }
+
+        $meta = stream_get_meta_data($this->resource);
+        $mode = $meta['mode'];
+
+        return (strstr($mode, 'r') || strstr($mode, '+'));
     }
 
     /**
-     * Read data from the stream.
-     *
-     * @param int $length Read up to $length bytes from the object and return
-     *     them. Fewer than $length bytes may be returned if underlying stream
-     *     call returns fewer bytes.
-     * @return string Returns the data read from the stream, or an empty string
-     *     if no bytes are available.
-     * @throws \RuntimeException if an error occurs.
+     * {@inheritdoc}
      */
     public function read($length)
     {
-        // TODO: Implement read() method.
+        if (!$this->resource) {
+            throw new RuntimeException();
+        }
+
+        if (!$this->isReadable()) {
+            throw new RuntimeException();
+        }
+
+        $result = fread($this->resource, $length);
+
+        if (false === $result) {
+            throw new RuntimeException();
+        }
+
+        return $result;
     }
 
     /**
-     * Returns the remaining contents in a string
-     *
-     * @return string
-     * @throws \RuntimeException if unable to read or an error occurs while
-     *     reading.
+     * {@inheritdoc}
      */
     public function getContents()
     {
-        // TODO: Implement getContents() method.
+        if (!$this->isReadable()) {
+            throw new RuntimeException();
+        }
+
+        $result = stream_get_contents($this->resource);
+
+        if (false === $result) {
+            throw new RuntimeException();
+        }
+
+        return $result;
     }
 
     /**
-     * Get stream metadata as an associative array or retrieve a specific key.
-     *
-     * The keys returned are identical to the keys returned from PHP's
-     * stream_get_meta_data() function.
-     *
-     * @link http://php.net/manual/en/function.stream-get-meta-data.php
-     * @param string $key Specific metadata to retrieve.
-     * @return array|mixed|null Returns an associative array if no key is
-     *     provided. Returns a specific key value if a key is provided and the
-     *     value is found, or null if the key is not found.
+     * {@inheritdoc}
      */
     public function getMetadata($key = null)
     {
-        // TODO: Implement getMetadata() method.
+        if (null === $key) {
+            return stream_get_meta_data($this->resource);
+        }
+
+        $metadata = stream_get_meta_data($this->resource);
+
+        if (!array_key_exists($key, $metadata)) {
+            return null;
+        }
+
+        return $metadata[$key];
+    }
+
+    /**
+     * @param string|resource $stream
+     * @param string $mode
+     * @return static
+     * @throws InvalidArgumentException
+     */
+    protected function setStream($stream, string $mode = 'r')
+    {
+        $error = null;
+        $resource = $stream;
+
+        if (is_string($stream)) {
+            set_error_handler(function ($e) use (&$error) {
+                if ($e !== E_WARNING) {
+                    return;
+                }
+
+                $error = $e;
+            });
+
+            $resource = fopen($stream, $mode);
+
+            restore_error_handler();
+        }
+
+        if ($error) {
+            throw new InvalidArgumentException();
+        }
+
+        if (!is_resource($resource) || 'stream' !== get_resource_type($resource)) {
+            throw new InvalidArgumentException();
+        }
+
+        if ($stream !== $resource) {
+            $this->stream = $stream;
+        }
+
+        $this->resource = $resource;
+
+        return $this;
     }
 }
