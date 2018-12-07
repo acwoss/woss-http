@@ -9,135 +9,268 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UploadedFileInterface;
+use RuntimeException;
+use function dirname;
+use function fclose;
+use function fopen;
+use function fwrite;
+use function is_dir;
+use function is_resource;
+use function is_string;
+use function is_writable;
+use function move_uploaded_file;
+use function strpos;
+use const PHP_SAPI;
+use const UPLOAD_ERR_OK;
 
 class UploadedFile implements UploadedFileInterface
 {
     /**
-     * Retrieve a stream representing the uploaded file.
-     *
-     * This method MUST return a StreamInterface instance, representing the
-     * uploaded file. The purpose of this method is to allow utilizing native PHP
-     * stream functionality to manipulate the file upload, such as
-     * stream_copy_to_stream() (though the result will need to be decorated in a
-     * native PHP stream wrapper to work with such functions).
-     *
-     * If the moveTo() method has been called previously, this method MUST raise
-     * an exception.
-     *
-     * @return StreamInterface Stream representation of the uploaded file.
-     * @throws \RuntimeException in cases when no stream is available or can be
-     *     created.
+     * @var int|null
      */
-    public function getStream()
+    private $size;
+
+    /**
+     * @var int
+     */
+    private $error;
+
+    /**
+     * @var string|null
+     */
+    private $clientFilename;
+
+    /**
+     * @var string|null
+     */
+    private $clientMediaType;
+
+    /**
+     * @var bool
+     */
+    private $moved;
+
+    /**
+     * @var string|null
+     */
+    private $file;
+
+    /**
+     * @var StreamInterface|null
+     */
+    private $stream;
+
+    /**
+     * UploadedFile constructor.
+     * @param $streamOrFile
+     * @param int $size
+     * @param int $errorStatus
+     * @param string|null $clientFilename
+     * @param string|null $clientMediaType
+     */
+    public function __construct(
+        $streamOrFile,
+        int $size,
+        int $errorStatus,
+        string $clientFilename = null,
+        string $clientMediaType = null
+    )
     {
-        // TODO: Implement getStream() method.
+        if ($errorStatus === UPLOAD_ERR_OK) {
+            if (is_string($streamOrFile)) {
+                $this->file = $streamOrFile;
+            }
+
+            if (is_resource($streamOrFile)) {
+                $this->stream = new Stream($streamOrFile);
+            }
+
+            if (!$this->file && !$this->stream) {
+                if (!$streamOrFile instanceof StreamInterface) {
+                    throw new InvalidArgumentException();
+                }
+                $this->stream = $streamOrFile;
+            }
+        }
+
+        $this->setSize($size);
+
+        if (0 > $errorStatus || 8 < $errorStatus) {
+            throw new InvalidArgumentException();
+        }
+
+        $this->setError($errorStatus);
+        $this->setClientFilename($clientFilename);
+        $this->setClientMediaType($clientMediaType);
     }
 
     /**
-     * Move the uploaded file to a new location.
-     *
-     * Use this method as an alternative to move_uploaded_file(). This method is
-     * guaranteed to work in both SAPI and non-SAPI environments.
-     * Implementations must determine which environment they are in, and use the
-     * appropriate method (move_uploaded_file(), rename(), or a stream
-     * operation) to perform the operation.
-     *
-     * $targetPath may be an absolute path, or a relative path. If it is a
-     * relative path, resolution should be the same as used by PHP's rename()
-     * function.
-     *
-     * The original file or stream MUST be removed on completion.
-     *
-     * If this method is called more than once, any subsequent calls MUST raise
-     * an exception.
-     *
-     * When used in an SAPI environment where $_FILES is populated, when writing
-     * files via moveTo(), is_uploaded_file() and move_uploaded_file() SHOULD be
-     * used to ensure permissions and upload status are verified correctly.
-     *
-     * If you wish to move to a stream, use getStream(), as SAPI operations
-     * cannot guarantee writing to stream destinations.
-     *
-     * @see http://php.net/is_uploaded_file
-     * @see http://php.net/move_uploaded_file
-     * @param string $targetPath Path to which to move the uploaded file.
-     * @throws \InvalidArgumentException if the $targetPath specified is invalid.
-     * @throws \RuntimeException on any error during the move operation, or on
-     *     the second or subsequent call to the method.
+     * {@inheritdoc}
+     */
+    public function getStream(): StreamInterface
+    {
+        if ($this->error !== UPLOAD_ERR_OK) {
+            throw new RuntimeException();
+        }
+
+        if ($this->moved) {
+            throw new RuntimeException();
+        }
+
+        if ($this->stream instanceof StreamInterface) {
+            return $this->stream;
+        }
+
+        $this->stream = new Stream($this->file);
+        return $this->stream;
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function moveTo($targetPath)
     {
-        // TODO: Implement moveTo() method.
+        if ($this->moved) {
+            throw new RuntimeException();
+        }
+
+        if ($this->error !== UPLOAD_ERR_OK) {
+            throw new RuntimeException();
+        }
+
+        if (!is_string($targetPath) || empty($targetPath)) {
+            throw new InvalidArgumentException();
+        }
+
+        $targetDirectory = dirname($targetPath);
+
+        if (!is_dir($targetDirectory) || !is_writable($targetDirectory)) {
+            throw new InvalidArgumentException();
+        }
+
+        $sapi = PHP_SAPI;
+
+        if (empty($sapi) || 0 === strpos($sapi, 'cli') || !$this->file) {
+            $this->writeFile($targetPath);
+        } else {
+            if (false === move_uploaded_file($this->file, $targetPath)) {
+                throw new RuntimeException();
+            }
+        }
+
+        $this->moved = true;
     }
 
     /**
-     * Retrieve the file size.
-     *
-     * Implementations SHOULD return the value stored in the "size" key of
-     * the file in the $_FILES array if available, as PHP calculates this based
-     * on the actual size transmitted.
-     *
-     * @return int|null The file size in bytes or null if unknown.
+     * {@inheritdoc}
      */
-    public function getSize()
+    public function getSize(): ?int
     {
-        // TODO: Implement getSize() method.
+        return $this->size;
     }
 
     /**
-     * Retrieve the error associated with the uploaded file.
-     *
-     * The return value MUST be one of PHP's UPLOAD_ERR_XXX constants.
-     *
-     * If the file was uploaded successfully, this method MUST return
-     * UPLOAD_ERR_OK.
-     *
-     * Implementations SHOULD return the value stored in the "error" key of
-     * the file in the $_FILES array.
-     *
-     * @see http://php.net/manual/en/features.file-upload.errors.php
-     * @return int One of PHP's UPLOAD_ERR_XXX constants.
+     * {@inheritdoc}
      */
-    public function getError()
+    public function getError(): int
     {
-        // TODO: Implement getError() method.
+        return $this->error;
     }
 
     /**
-     * Retrieve the filename sent by the client.
-     *
-     * Do not trust the value returned by this method. A client could send
-     * a malicious filename with the intention to corrupt or hack your
-     * application.
-     *
-     * Implementations SHOULD return the value stored in the "name" key of
-     * the file in the $_FILES array.
-     *
-     * @return string|null The filename sent by the client or null if none
-     *     was provided.
+     * {@inheritdoc}
      */
-    public function getClientFilename()
+    public function getClientFilename(): ?string
     {
-        // TODO: Implement getClientFilename() method.
+        return $this->clientFilename;
     }
 
     /**
-     * Retrieve the media type sent by the client.
-     *
-     * Do not trust the value returned by this method. A client could send
-     * a malicious media type with the intention to corrupt or hack your
-     * application.
-     *
-     * Implementations SHOULD return the value stored in the "type" key of
-     * the file in the $_FILES array.
-     *
-     * @return string|null The media type sent by the client or null if none
-     *     was provided.
+     * {@inheritdoc}
      */
-    public function getClientMediaType()
+    public function getClientMediaType(): ?string
     {
-        // TODO: Implement getClientMediaType() method.
+        return $this->clientMediaType;
+    }
+
+    /**
+     * Escreve a stream interna no arquivo especificado.
+     *
+     * @param string $path
+     */
+    private function writeFile(string $path): void
+    {
+        $handle = fopen($path, 'wb+');
+
+        if (false === $handle) {
+            throw new RuntimeException();
+        }
+
+        $stream = $this->getStream();
+        $stream->rewind();
+
+        while (!$stream->eof()) {
+            fwrite($handle, $stream->read(4096));
+        }
+
+        fclose($handle);
+    }
+
+    /**
+     * @param int|null $size
+     * @return static
+     */
+    protected function setSize(?int $size)
+    {
+        $this->size = $size;
+
+        return $this;
+    }
+
+    /**
+     * @param int $error
+     * @return static
+     */
+    protected function setError(int $error)
+    {
+        $this->error = $error;
+
+        return $this;
+    }
+
+    /**
+     * @param string|null $clientFilename
+     * @return static
+     */
+    protected function setClientFilename(?string $clientFilename)
+    {
+        $this->clientFilename = $clientFilename;
+
+        return $this;
+    }
+
+    /**
+     * @param string|null $clientMediaType
+     * @return static
+     */
+    protected function setClientMediaType(?string $clientMediaType)
+    {
+        $this->clientMediaType = $clientMediaType;
+
+        return $this;
+    }
+
+    /**
+     * @param StreamInterface|null $stream
+     * @return static
+     */
+    protected function setStream(?StreamInterface $stream)
+    {
+        $this->stream = $stream;
+
+        return $this;
     }
 }
