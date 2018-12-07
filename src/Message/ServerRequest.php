@@ -10,32 +10,66 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
 use Psr\Http\Message\ServerRequestInterface;
 
 class ServerRequest extends Request implements ServerRequestInterface
 {
     /**
-     * @var array Conjunto de dados relacionados ao servidor
+     * @var array
      */
     private $serverParams;
 
     /**
-     * @var array Conjunto de cookies
+     * @var array
      */
     private $cookieParams;
 
     /**
-     * @var array Conjunto de termos de busca
+     * @var array
      */
     private $queryParams;
 
     /**
-     * Retorna os parâmetros do servidor.
-     *
-     * Retorna o conjunto de parâmetros relacionados ao ambiente, geralmente, mas não obrigatoriamente originados a
-     * partir da estrutura $_SERVER, nativa do PHP.
-     *
-     * @return array
+     * @var array
+     */
+    private $uploadedFiles;
+
+    /**
+     * @var null|array|object
+     */
+    private $parsedBody;
+
+    /**
+     * @var array
+     */
+    private $attributes;
+
+    public function __construct(
+        array $serverParams = [],
+        array $uploadedFiles = [],
+        $uri = null,
+        string $method = null,
+        $body = 'php://input',
+        array $headers = [],
+        array $cookies = [],
+        array $queryParams = [],
+        $parsedBody = null,
+        string $protocol = '1.1'
+    )
+    {
+        parent::__construct($uri, $method, $body, $headers);
+
+        $this->setServerParams($serverParams);
+        $this->setUploadedFiles($uploadedFiles);
+        $this->setCookieParams($cookies);
+        $this->setQueryParams($queryParams);
+        $this->setParsedBody($parsedBody);
+        $this->setProtocolVersion($protocol);
+    }
+
+    /**
+     * {@inheritdoc}
      */
     public function getServerParams(): array
     {
@@ -43,11 +77,7 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * Retorna os cookies.
-     *
-     * Retorna o conjunto de cookies enviados pelo cliente ao servidor.
-     *
-     * @return array
+     * {@inheritdoc}
      */
     public function getCookieParams(): array
     {
@@ -55,15 +85,7 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * Retorna uma instância com os cookies informados.
-     *
-     * Não é obrigatório que os dados sejam providos pela variável $_COOKIE do PHP, porém é necessário que a estrutura
-     * seja compatível com tal. Tipicamente esses dados são injetados durante a instanciação.
-     *
-     * Este método não altera os cabeçalhos Cookie da requisição, nem os valores relacionados nos parâmetros d servidor.
-     *
-     * @param array $cookies Conjunto de cookies
-     * @return static
+     * {@inheritdoc}
      */
     public function withCookieParams(array $cookies)
     {
@@ -74,15 +96,7 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * Retorna o conjunto de termos de consulta.
-     *
-     * Retorna o conjunto desserializado dos termos de consulta, se existirem.
-     *
-     * Os valores retornados podem não estar sincronizados com os valores da URI ou com os parâmetros do servidor.
-     * Se você deseja trabalhar com os dados originais dos termos de consulta, é recomendado que utilize o método
-     * getUri()->getQuery() ou acesse o parâmetro de servidor `QUERY_STRING`.
-     *
-     * @return array
+     * {@inheritdoc}
      */
     public function getQueryParams(): array
     {
@@ -90,190 +104,174 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * Return an instance with the specified query string arguments.
-     *
-     * These values SHOULD remain immutable over the course of the incoming
-     * request. They MAY be injected during instantiation, such as from PHP's
-     * $_GET superglobal, or MAY be derived from some other value such as the
-     * URI. In cases where the arguments are parsed from the URI, the data
-     * MUST be compatible with what PHP's parse_str() would return for
-     * purposes of how duplicate query parameters are handled, and how nested
-     * sets are handled.
-     *
-     * Setting query string arguments MUST NOT change the URI stored by the
-     * request, nor the values in the server params.
-     *
-     * This method MUST be implemented in such a way as to retain the
-     * immutability of the message, and MUST return an instance that has the
-     * updated query string arguments.
-     *
-     * @param array $query Array of query string arguments, typically from
-     *     $_GET.
-     * @return static
+     * {@inheritdoc}
      */
     public function withQueryParams(array $query)
     {
-        // TODO: Implement withQueryParams() method.
+        $new = clone $this;
+        $new->queryParams = $query;
+
+        return $new;
     }
 
     /**
-     * Retrieve normalized file upload data.
-     *
-     * This method returns upload metadata in a normalized tree, with each leaf
-     * an instance of Psr\Http\Message\UploadedFileInterface.
-     *
-     * These values MAY be prepared from $_FILES or the message body during
-     * instantiation, or MAY be injected via withUploadedFiles().
-     *
-     * @return array An array tree of UploadedFileInterface instances; an empty
-     *     array MUST be returned if no data is present.
+     * {@inheritdoc}
      */
     public function getUploadedFiles()
     {
-        // TODO: Implement getUploadedFiles() method.
+        return $this->uploadedFiles;
     }
 
     /**
-     * Create a new instance with the specified uploaded files.
-     *
-     * This method MUST be implemented in such a way as to retain the
-     * immutability of the message, and MUST return an instance that has the
-     * updated body parameters.
-     *
-     * @param array $uploadedFiles An array tree of UploadedFileInterface instances.
-     * @return static
-     * @throws \InvalidArgumentException if an invalid structure is provided.
+     * {@inheritdoc}
      */
     public function withUploadedFiles(array $uploadedFiles)
     {
-        // TODO: Implement withUploadedFiles() method.
+        $this->assertUploadedFiles($uploadedFiles);
+
+        $new = clone $this;
+        $new->uploadedFiles = $uploadedFiles;
+
+        return $new;
     }
 
     /**
-     * Retrieve any parameters provided in the request body.
-     *
-     * If the request Content-Type is either application/x-www-form-urlencoded
-     * or multipart/form-data, and the request method is POST, this method MUST
-     * return the contents of $_POST.
-     *
-     * Otherwise, this method may return any results of deserializing
-     * the request body content; as parsing returns structured content, the
-     * potential types MUST be arrays or objects only. A null value indicates
-     * the absence of body content.
-     *
-     * @return null|array|object The deserialized body parameters, if any.
-     *     These will typically be an array or object.
+     * {@inheritdoc}
      */
     public function getParsedBody()
     {
-        // TODO: Implement getParsedBody() method.
+        return $this->parsedBody;
     }
 
     /**
-     * Return an instance with the specified body parameters.
-     *
-     * These MAY be injected during instantiation.
-     *
-     * If the request Content-Type is either application/x-www-form-urlencoded
-     * or multipart/form-data, and the request method is POST, use this method
-     * ONLY to inject the contents of $_POST.
-     *
-     * The data IS NOT REQUIRED to come from $_POST, but MUST be the results of
-     * deserializing the request body content. Deserialization/parsing returns
-     * structured data, and, as such, this method ONLY accepts arrays or objects,
-     * or a null value if nothing was available to parse.
-     *
-     * As an example, if content negotiation determines that the request data
-     * is a JSON payload, this method could be used to create a request
-     * instance with the deserialized parameters.
-     *
-     * This method MUST be implemented in such a way as to retain the
-     * immutability of the message, and MUST return an instance that has the
-     * updated body parameters.
-     *
-     * @param null|array|object $data The deserialized body data. This will
-     *     typically be in an array or object.
-     * @return static
-     * @throws \InvalidArgumentException if an unsupported argument type is
-     *     provided.
+     * {@inheritdoc}
      */
     public function withParsedBody($data)
     {
-        // TODO: Implement withParsedBody() method.
+        if (!is_array($data) && !is_object($data) && null !== $data) {
+            throw new InvalidArgumentException(sprintf(
+                '%s expects a null, array, or object argument; received %s',
+                __METHOD__,
+                gettype($data)
+            ));
+        }
+
+        $new = clone $this;
+        $new->parsedBody = $data;
+
+        return $new;
     }
 
     /**
-     * Retrieve attributes derived from the request.
-     *
-     * The request "attributes" may be used to allow injection of any
-     * parameters derived from the request: e.g., the results of path
-     * match operations; the results of decrypting cookies; the results of
-     * deserializing non-form-encoded message bodies; etc. Attributes
-     * will be application and request specific, and CAN be mutable.
-     *
-     * @return array Attributes derived from the request.
+     * {@inheritdoc}
      */
     public function getAttributes()
     {
-        // TODO: Implement getAttributes() method.
+        return $this->attributes;
     }
 
     /**
-     * Retrieve a single derived request attribute.
-     *
-     * Retrieves a single derived request attribute as described in
-     * getAttributes(). If the attribute has not been previously set, returns
-     * the default value as provided.
-     *
-     * This method obviates the need for a hasAttribute() method, as it allows
-     * specifying a default value to return if the attribute is not found.
-     *
-     * @see getAttributes()
-     * @param string $name The attribute name.
-     * @param mixed $default Default value to return if the attribute does not exist.
-     * @return mixed
+     * {@inheritdoc}
      */
     public function getAttribute($name, $default = null)
     {
-        // TODO: Implement getAttribute() method.
+        if (!array_key_exists($name, $this->attributes)) {
+            return $default;
+        }
+
+        return $this->attributes[$name];
     }
 
     /**
-     * Return an instance with the specified derived request attribute.
-     *
-     * This method allows setting a single derived request attribute as
-     * described in getAttributes().
-     *
-     * This method MUST be implemented in such a way as to retain the
-     * immutability of the message, and MUST return an instance that has the
-     * updated attribute.
-     *
-     * @see getAttributes()
-     * @param string $name The attribute name.
-     * @param mixed $value The value of the attribute.
-     * @return static
+     * {@inheritdoc}
      */
     public function withAttribute($name, $value)
     {
-        // TODO: Implement withAttribute() method.
+        $new = clone $this;
+        $new->attributes[$name] = $value;
+
+        return $new;
     }
 
     /**
-     * Return an instance that removes the specified derived request attribute.
-     *
-     * This method allows removing a single derived request attribute as
-     * described in getAttributes().
-     *
-     * This method MUST be implemented in such a way as to retain the
-     * immutability of the message, and MUST return an instance that removes
-     * the attribute.
-     *
-     * @see getAttributes()
-     * @param string $name The attribute name.
-     * @return static
+     * {@inheritdoc}
      */
     public function withoutAttribute($name)
     {
-        // TODO: Implement withoutAttribute() method.
+        $new = clone $this;
+        unset($new->attributes[$name]);
+
+        return $new;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected function assertUploadedFiles(array $uploadedFiles)
+    {
+        foreach ($uploadedFiles as $key => $uploadedFile) {
+            if (!$uploadedFile instanceof UploadedFile) {
+                throw new InvalidArgumentException(sprintf(
+                    "Objeto não suportado na posição %d. Era esperado uma instância de UploadedFile, mas chegou %s",
+                    $key,
+                    is_object($uploadedFile) ? get_class($uploadedFile) : gettype($uploadedFile)
+                ));
+            }
+        }
+    }
+
+    /**
+     * @param array $serverParams
+     * @return static
+     */
+    protected function setServerParams(array $serverParams)
+    {
+        $this->serverParams = $serverParams;
+
+        return $this;
+    }
+
+    /**
+     * @param array $uploadedFiles
+     * @return static
+     */
+    protected function setUploadedFiles(array $uploadedFiles)
+    {
+        $this->uploadedFiles = $uploadedFiles;
+
+        return $this;
+    }
+
+    /**
+     * @param array $cookieParams
+     * @return static
+     */
+    protected function setCookieParams(array $cookieParams)
+    {
+        $this->cookieParams = $cookieParams;
+
+        return $this;
+    }
+
+    /**
+     * @param array $queryParams
+     * @return static
+     */
+    protected function setQueryParams(array $queryParams)
+    {
+        $this->queryParams = $queryParams;
+
+        return $this;
+    }
+
+    /**
+     * @param array|object|null $parsedBody
+     * @return static
+     */
+    protected function setParsedBody($parsedBody)
+    {
+        $this->parsedBody = $parsedBody;
+
+        return $this;
     }
 }
