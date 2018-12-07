@@ -50,6 +50,17 @@ abstract class Message implements MessageInterface
     }
 
     /**
+     * @param $version
+     * @return $this
+     */
+    protected function setProtocolVersion($version)
+    {
+        $this->protocol = $version;
+
+        return $this;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function withProtocolVersion($version)
@@ -66,6 +77,36 @@ abstract class Message implements MessageInterface
     public function getHeaders(): array
     {
         return $this->headers;
+    }
+
+    /**
+     * @param array $originalHeaders
+     * @return static
+     */
+    protected function setHeaders(array $originalHeaders)
+    {
+        foreach ($originalHeaders as $name => $value) {
+            $this->setHeader($name, $value);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param $name
+     * @param $value
+     * @return static
+     */
+    protected function setHeader($name, $value)
+    {
+        if (!is_array($value)) {
+            $value = [$value];
+        }
+
+        $name = $this->normalizeHeaderName($name);
+        $this->headers[$name] = $value;
+
+        return $this;
     }
 
     /**
@@ -163,74 +204,6 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * {@inheritdoc}
-     */
-    public function withBody(StreamInterface $body)
-    {
-        $new = clone $this;
-        $new->setBody($body);
-
-        return $new;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    private function normalizeHeaderName($name): string
-    {
-        return implode('-', array_map('ucfirst', explode('-', $name)));
-    }
-
-    /**
-     * @param $stream
-     * @param string $modeIfNotInstance
-     * @return StreamInterface
-     * @throws InvalidArgumentException
-     */
-    protected function getStream($stream, string $modeIfNotInstance): StreamInterface
-    {
-        if ($stream instanceof StreamInterface) {
-            return $stream;
-        }
-
-        if (!is_string($stream) && !is_resource($stream)) {
-            throw new InvalidArgumentException();
-        }
-
-        return new Stream($stream, $modeIfNotInstance);
-    }
-
-    /**
-     * @param array $originalHeaders
-     * @return static
-     */
-    protected function setHeaders(array $originalHeaders)
-    {
-        foreach ($originalHeaders as $name => $value) {
-            $this->setHeader($name, $value);
-        }
-
-        return $this;
-    }
-
-    /**
-     * @param $name
-     * @param $value
-     * @return static
-     */
-    protected function setHeader($name, $value)
-    {
-        if (!is_array($value)) {
-            $value = [$value];
-        }
-
-        $name = $this->normalizeHeaderName($name);
-        $this->headers[$name] = $value;
-
-        return $this;
-    }
-
-    /**
      * @param string|resource|StreamInterface $body
      * @param string $mode
      * @return static
@@ -251,13 +224,22 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * @param $version
-     * @return $this
+     * {@inheritdoc}
      */
-    protected function setProtocolVersion($version)
+    public function withBody(StreamInterface $body)
     {
-        $this->protocol = $version;
+        $new = clone $this;
+        $new->setBody($body);
 
-        return $this;
+        return $new;
+    }
+
+    /**
+     * @param $name
+     * @return string
+     */
+    private function normalizeHeaderName($name): string
+    {
+        return implode('-', array_map('ucfirst', explode('-', $name)));
     }
 }
