@@ -40,11 +40,7 @@ class Pipeline implements RequestHandlerInterface
     }
 
     /**
-     * Lida com uma requisição HTTP e produz uma resposta.
-     *
-     * @param ServerRequestInterface $request
-     * @return ResponseInterface
-     * @throws InvalidArgumentException Quando o manipulador é de um tipo inesperado
+     * {@inheritdoc}
      */
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

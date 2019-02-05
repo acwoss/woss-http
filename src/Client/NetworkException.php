@@ -16,11 +16,7 @@ use Psr\Http\Message\RequestInterface;
 class NetworkException extends Exception implements NetworkExceptionInterface
 {
     /**
-     * Returns the request.
-     *
-     * The request object MAY be a different object from the one passed to ClientInterface::sendRequest()
-     *
-     * @return RequestInterface
+     * {@inheritdoc}
      */
     public function getRequest(): RequestInterface
     {
