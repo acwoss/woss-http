@@ -30,7 +30,7 @@ class Request extends Message implements RequestInterface
     /**
      * @var string
      */
-    private $method;
+    private $method = 'GET';
 
     /**
      * @param null|string|UriInterface $uri
@@ -80,7 +80,12 @@ class Request extends Message implements RequestInterface
      */
     public function withRequestTarget($requestTarget): RequestInterface
     {
-        // TODO: fazer a validação do alvo de requisição
+        if (preg_match('#\s#', $requestTarget)) {
+            throw new InvalidArgumentException(
+                'Alvo de requisição inválido; não pode conter espaço em branco'
+            );
+        }
+
         $new = clone $this;
         $new->requestTarget = $requestTarget;
 
@@ -100,7 +105,20 @@ class Request extends Message implements RequestInterface
      */
     public function withMethod($method): RequestInterface
     {
-        // TODO: fazer a validação do método HTTP
+        if (! is_string($method)) {
+            throw new InvalidArgumentException(sprintf(
+                'Método HTTP não suportado; era esperado uma string, chegou %s',
+                is_object($method) ? get_class($method) : gettype($method)
+            ));
+        }
+
+        if (! preg_match('/^[!#$%&\'*+.^_`\|~0-9a-z-]+$/i', $method)) {
+            throw new InvalidArgumentException(sprintf(
+                'Método HTTP não suportado: "%s"',
+                $method
+            ));
+        }
+
         $new = clone $this;
         $new->method = $method;
 

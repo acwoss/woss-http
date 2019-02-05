@@ -76,6 +76,7 @@ abstract class Message implements MessageInterface
      */
     public function getHeaders(): array
     {
+
         return $this->headers;
     }
 
@@ -104,6 +105,33 @@ abstract class Message implements MessageInterface
         }
 
         $name = $this->normalizeHeaderName($name);
+
+        foreach ($value as $v) {
+            if (!is_string($v) && !is_numeric($v)) {
+                throw new InvalidArgumentException(sprintf(
+                    'Tipo de valor de cabeçalho inválido; esperado string ou numérico; recebido %s',
+                    (is_object($v) ? get_class($v) : gettype($v))
+                ));
+            }
+
+            $valid = true;
+
+            if (preg_match("#(?:(?:(?<!\r)\n)|(?:\r(?!\n))|(?:\r\n(?![ \t])))#", $v)) {
+                $valid = false;
+            }
+
+            if (preg_match('/[^\x09\x0a\x0d\x20-\x7E\x80-\xFE]/', $v)) {
+                $valid = false;
+            }
+
+            if (!$valid) {
+                throw new InvalidArgumentException(sprintf(
+                    '"%s" não é um valor válido de cabeçalho',
+                    gettype($value)
+                ));
+            }
+        }
+
         $this->headers[$name] = $value;
 
         return $this;
@@ -150,23 +178,11 @@ abstract class Message implements MessageInterface
      */
     public function withAddedHeader($name, $value)
     {
-        if (!$this->hasHeader($name)) {
-            return $this->withHeader($name, $value);
+        if ($this->hasHeader($name)) {
+            $value = array_merge($this->getHeader($name), $value);
         }
 
-        // TODO: fazer a validação do nome do cabeçalho
-        // TODO: fazer a validação dos valores do cabeçalho
-
-        $name = $this->normalizeHeaderName($name);
-
-        if (!is_array($value)) {
-            $value = [$value];
-        }
-
-        $new = clone $this;
-        $new->headers[$name] = array_merge($new->headers[$name], $value);
-
-        return $new;
+        return $this->withHeader($name, $value);
     }
 
     /**
@@ -240,6 +256,20 @@ abstract class Message implements MessageInterface
      */
     private function normalizeHeaderName($name): string
     {
+        if (!is_string($name)) {
+            throw new InvalidArgumentException(sprintf(
+                'Tipo do nome de cabeçalho inválido; esperado string, recebido %s',
+                (is_object($name) ? get_class($name) : gettype($name))
+            ));
+        }
+
+        if (!preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $name)) {
+            throw new InvalidArgumentException(sprintf(
+                '"%s" não é um nome válido de cabeçalho',
+                $name
+            ));
+        }
+
         return implode('-', array_map('ucfirst', explode('-', $name)));
     }
 }
