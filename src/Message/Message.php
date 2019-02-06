@@ -10,11 +10,7 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
-use InvalidArgumentException;
-use Psr\Http\Message\MessageInterface;
-use Psr\Http\Message\StreamInterface;
-
-abstract class Message implements MessageInterface
+abstract class Message
 {
     /**
      * @var string
@@ -27,22 +23,26 @@ abstract class Message implements MessageInterface
     private $headers = [];
 
     /**
-     * @var StreamInterface
+     * @var Stream
      */
     private $body;
 
     /**
-     * @param string $body
-     * @param array $headers
+     * Inicializa uma nova instância de Message.
+     *
+     * @param string|resource|Stream $body Corpo da mensagem.
+     * @param array $headers Lista de cabeçalhos.
      */
-    protected function __construct($body = 'php://memory', array $headers = [])
+    protected function __construct($body = 'php://memory', $headers = [])
     {
         $this->setBody($body, 'wb+');
         $this->setHeaders($headers);
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a versão do protocolo HTTP.
+     *
+     * @return string Versão do protocolo HTTP.
      */
     public function getProtocolVersion(): string
     {
@@ -50,95 +50,115 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * @param $version
-     * @return $this
+     * Define a versão do protocolo HTTP.
+     *
+     * @param string $version Versão do protocolo HTTP.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    protected function setProtocolVersion($version)
+    protected function setProtocolVersion($version): bool
     {
+        if (!is_string($version)) {
+            return false;
+        }
+
+        if (!preg_match('\d+\.\d+', $version)) {
+            return false;
+        }
+
         $this->protocol = $version;
 
-        return $this;
+        return true;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da mensagem com a nova versão do protocolo definida.
+     *
+     * @param string $version Versão do protocolo HTTP.
+     * @return Message|null Cópia da mensagem com a nova versão do protocolo, nulo em caso de falha.
      */
-    public function withProtocolVersion($version)
+    public function withProtocolVersion($version): ?Message
     {
         $new = clone $this;
-        $new->setProtocolVersion($version);
+
+        if (!$new->setProtocolVersion($version)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a lista de cabeçalhos da mensagem.
+     *
+     * @return array Array associativo em que as chaves são os nomes dos cabeçalhos e os valores são os um array
+     *      sequencial com os respectivos valores.
      */
     public function getHeaders(): array
     {
-
         return $this->headers;
     }
 
     /**
-     * @param array $originalHeaders
-     * @return static
+     * Define a lista de cabeçalhos da mensagem.
+     *
+     * @param array $headers Array associativo com os cabeçalhos da mensagem. A chave representa o nome do cabeçalho,
+     *      enquanto o valor é um array com os respectivos valores.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    protected function setHeaders(array $originalHeaders)
+    protected function setHeaders($headers): bool
     {
-        foreach ($originalHeaders as $name => $value) {
-            $this->setHeader($name, $value);
+        if (!is_array($headers)) {
+            return false;
         }
 
-        return $this;
+        foreach ($headers as $name => $value) {
+            if (!$this->setHeader($name, $value)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
-     * @param $name
-     * @param $value
-     * @return static
+     * Define um cabeçalho da mensagem.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @param mixed $value Valor do cabeçalho.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    protected function setHeader($name, $value)
+    protected function setHeader($name, $value): bool
     {
+        $name = $this->normalizeHeaderName($name);
+
+        if (is_null($name)) {
+            return false;
+        }
+
         if (!is_array($value)) {
             $value = [$value];
         }
 
-        $name = $this->normalizeHeaderName($name);
-
         foreach ($value as $v) {
-            if (!is_string($v) && !is_numeric($v)) {
-                throw new InvalidArgumentException(sprintf(
-                    'Tipo de valor de cabeçalho inválido; esperado string ou numérico; recebido %s',
-                    (is_object($v) ? get_class($v) : gettype($v))
-                ));
-            }
-
-            $valid = true;
-
-            if (preg_match("#(?:(?:(?<!\r)\n)|(?:\r(?!\n))|(?:\r\n(?![ \t])))#", $v)) {
-                $valid = false;
-            }
-
-            if (preg_match('/[^\x09\x0a\x0d\x20-\x7E\x80-\xFE]/', $v)) {
-                $valid = false;
-            }
-
-            if (!$valid) {
-                throw new InvalidArgumentException(sprintf(
-                    '"%s" não é um valor válido de cabeçalho',
-                    gettype($value)
-                ));
+            if (
+                (!is_string($v) && !is_numeric($v)) ||
+                preg_match("#(?:(?:(?<!\r)\n)|(?:\r(?!\n))|(?:\r\n(?![ \t])))#", $v) ||
+                preg_match('/[^\x09\x0a\x0d\x20-\x7E\x80-\xFE]/', $v)
+            ) {
+                return false;
             }
         }
 
         $this->headers[$name] = $value;
 
-        return $this;
+        return true;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna os valores do cabeçalho separados por vírgula.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @return string Valores do cabeçalho separados por vírgula.
      */
     public function getHeaderLine($name): string
     {
@@ -150,17 +170,27 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Verifica se a mensagem possui determinado cabeçalho.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @return bool Verdadeiro se possuir, falso caso contrário.
      */
     public function hasHeader($name): bool
     {
         $name = $this->normalizeHeaderName($name);
 
+        if (is_null($name)) {
+            return false;
+        }
+
         return array_key_exists($name, $this->headers);
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o array de valores de determinado cabeçalho.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @return array Lista de valores do cabeçalho.
      */
     public function getHeader($name): array
     {
@@ -174,10 +204,18 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da mensagem adicionando um cabeçalho.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @param mixed $value Valor do cabeçalho.
+     * @return Message|null Cópia da mensagem com o novo cabeçalho, nulo em caso de falha.
      */
-    public function withAddedHeader($name, $value)
+    public function withAddedHeader($name, $value): ?Message
     {
+        if (is_array($value)) {
+            $value = [$value];
+        }
+
         if ($this->hasHeader($name)) {
             $value = array_merge($this->getHeader($name), $value);
         }
@@ -186,20 +224,30 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da mensagem definindo um cabeçalho.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @param mixed $value Valor do cabeçalho.
+     * @return Message|null Cópia da mensagem com o novo cabeçalho, nulo em caso de falha.
      */
-    public function withHeader($name, $value)
+    public function withHeader($name, $value): Message
     {
         $new = clone $this;
-        $new->setHeader($name, $value);
+
+        if (!$new->setHeader($name, $value)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da mensagem removendo um cabeçalho.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @return Message Cópia da mensagem sem o cabeçalho.
      */
-    public function withoutHeader($name)
+    public function withoutHeader($name): Message
     {
         $new = clone $this;
 
@@ -212,22 +260,26 @@ abstract class Message implements MessageInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o corpo da mensagem.
+     *
+     * @return Stream Corpo da mensagem.
      */
-    public function getBody(): StreamInterface
+    public function getBody(): Stream
     {
         return $this->body;
     }
 
     /**
-     * @param string|resource|StreamInterface $body
-     * @param string $mode
-     * @return static
+     * Define o corpo da mensagem HTTP.
+     *
+     * @param string|resource|Stream $body Corpo da mensagem.
+     * @param string $mode Modo de operação do corpo da mensagem.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    protected function setBody($body, string $mode = 'r')
+    protected function setBody($body, string $mode = 'r'): bool
     {
-        if (!is_string($body) && !is_resource($body) && !($body instanceof StreamInterface)) {
-            throw new InvalidArgumentException();
+        if (!is_string($body) && !is_resource($body) && !($body instanceof Stream)) {
+            return false;
         }
 
         if (is_string($body) || is_resource($body)) {
@@ -236,38 +288,36 @@ abstract class Message implements MessageInterface
 
         $this->body = $body;
 
-        return $this;
+        return true;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da mensagem definindo o novo corpo.
+     *
+     * @param string|resource|Stream $body Corpo da mensagem.
+     * @return Message|null Cópia da mensagem com o novo corpo, nulo em caso de falha.
      */
-    public function withBody(StreamInterface $body)
+    public function withBody($body): ?Message
     {
         $new = clone $this;
-        $new->setBody($body);
+
+        if (!$new->setBody($body)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * @param $name
-     * @return string
+     * Retorna o nome do cabeçalho normalizado.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @return string|null Nome normalizado do cabeçalho, nulo em caso de falha.
      */
-    private function normalizeHeaderName($name): string
+    private function normalizeHeaderName($name): ?string
     {
-        if (!is_string($name)) {
-            throw new InvalidArgumentException(sprintf(
-                'Tipo do nome de cabeçalho inválido; esperado string, recebido %s',
-                (is_object($name) ? get_class($name) : gettype($name))
-            ));
-        }
-
-        if (!preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $name)) {
-            throw new InvalidArgumentException(sprintf(
-                '"%s" não é um nome válido de cabeçalho',
-                $name
-            ));
+        if (!is_string($name) || !preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $name)) {
+            return null;
         }
 
         return implode('-', array_map('ucfirst', explode('-', $name)));

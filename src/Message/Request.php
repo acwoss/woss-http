@@ -10,12 +10,7 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
-use InvalidArgumentException;
-use Psr\Http\Message\RequestInterface;
-use Psr\Http\Message\StreamInterface;
-use Psr\Http\Message\UriInterface;
-
-class Request extends Message implements RequestInterface
+class Request extends Message
 {
     /**
      * @var string
@@ -23,40 +18,41 @@ class Request extends Message implements RequestInterface
     private $requestTarget;
 
     /**
-     * @var UriInterface
+     * @var Uri
      */
     private $uri;
 
     /**
      * @var string
      */
-    private $method = 'GET';
+    private $method;
 
     /**
-     * @param null|string|UriInterface $uri
-     * @param null|string $method
-     * @param string|resource|StreamInterface $body
-     * @param array $headers Headers
-     * @throws InvalidArgumentException
+     * Inicializa uma nova instância de Request.
+     *
+     * @param string|Uri $uri URI da requisição.
+     * @param string $method Método da requisição.
+     * @param string|resource|Stream $body Corpo da requisição.
+     * @param array $headers Headers Lista de cabeçalhos da requisição.
      */
-    public function __construct($uri = null, string $method = null, $body = 'php://temp', array $headers = [])
+    public function __construct($uri = '', $method = 'GET', $body = 'php://temp', $headers = [])
     {
-        if ($method !== null) {
-            $this->setMethod($method);
-        }
-
         parent::__construct($body, $headers);
-        $this->uri = $this->createUri($uri);
 
-        if (!$this->hasHeader('Host') && $this->uri->getHost()) {
+        $this->setMethod($method);
+        $this->setUri($uri);
+
+        if (!$this->hasHeader('Host') && $this->uri->getHost() !== '') {
             $this->setHeader('Host', $this->getHostFromUri());
         }
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o alvo da requisição.
+     *
+     * @return string Alvo da requisição.
      */
-    public function getRequestTarget()
+    public function getRequestTarget(): string
     {
         if (!is_null($this->requestTarget)) {
             return $this->requestTarget;
@@ -64,11 +60,11 @@ class Request extends Message implements RequestInterface
 
         $target = $this->uri->getPath();
 
-        if ($this->uri->getQuery()) {
+        if ($this->uri->getQuery() !== '') {
             $target .= '?' . $this->uri->getQuery();
         }
 
-        if (!$target) {
+        if ($target === '') {
             $target = "/";
         }
 
@@ -76,82 +72,118 @@ class Request extends Message implements RequestInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da requisição definindo o novo alvo.
+     *
+     * @param string $requestTarget Novo alvo da requisição.
+     * @return Request|null Cópia da requisição com o novo alvo, nulo em caso de falha.
      */
-    public function withRequestTarget($requestTarget): RequestInterface
+    public function withRequestTarget($requestTarget): ?Request
     {
-        if (preg_match('#\s#', $requestTarget)) {
-            throw new InvalidArgumentException(
-                'Alvo de requisição inválido; não pode conter espaço em branco'
-            );
-        }
-
         $new = clone $this;
-        $new->requestTarget = $requestTarget;
+
+        if (!$new->setRequestTarget($requestTarget)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Define o novo alvo da requisição.
+     *
+     * @param string $requestTarget Novo alvo da requisição.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function getMethod()
+    protected function setRequestTarget($requestTarget): bool
+    {
+        if (preg_match('#\s#', $requestTarget)) {
+            return false;
+        }
+
+        $this->requestTarget = $requestTarget;
+
+        return true;
+    }
+
+    /**
+     * Retorna o método da requisição.
+     *
+     * @return string Método da requisição.
+     */
+    public function getMethod(): string
     {
         return $this->method;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da requisição deinindo o novo método.
+     *
+     * @param string $method Novo método da requisição.
+     * @return Request|null Cópia da requisição com o novo método.
      */
-    public function withMethod($method): RequestInterface
+    public function withMethod($method): ?Request
     {
-        if (! is_string($method)) {
-            throw new InvalidArgumentException(sprintf(
-                'Método HTTP não suportado; era esperado uma string, chegou %s',
-                is_object($method) ? get_class($method) : gettype($method)
-            ));
-        }
-
-        if (! preg_match('/^[!#$%&\'*+.^_`\|~0-9a-z-]+$/i', $method)) {
-            throw new InvalidArgumentException(sprintf(
-                'Método HTTP não suportado: "%s"',
-                $method
-            ));
-        }
-
         $new = clone $this;
-        $new->method = $method;
+
+        if (!$new->setMethod($method)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Define o novo método da requisição.
+     *
+     * @param string $method Novo método da requisição.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function getUri(): UriInterface
+    protected function setMethod($method): bool
+    {
+        if (!is_string($method) || !preg_match('/^[!#$%&\'*+.^_`\|~0-9a-z-]+$/i', $method)) {
+            return false;
+        }
+
+        $this->method = $method;
+
+        return true;
+    }
+
+    /**
+     * Retorna a URI da requisição.
+     *
+     * @return Uri URI da requisição.
+     */
+    public function getUri(): Uri
     {
         return $this->uri;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da requisição definindo uma nova URI.
+     *
+     * @param string|Uri $uri URI da requisição.
+     * @param bool $preserveHost Define se deverá preservar o cabeçalho Host.
+     * @return Request|null Cópia da requisição com a nova URI, nulo em caso de falha.
      */
-    public function withUri(UriInterface $uri, $preserveHost = false): RequestInterface
+    public function withUri($uri, $preserveHost = false): ?Request
     {
+        /**
+         * @var Request $new
+         */
         $new = clone $this;
-        $new->uri = $uri;
 
-        if ($preserveHost && $new->hasHeader('Host')) {
-            return $new;
+        if (!$new->setUri($uri)) {
+            return null;
         }
 
-        if (!$uri->getHost()) {
+        if (($preserveHost && $new->hasHeader('Host')) || ($uri->getHost() === '')) {
             return $new;
         }
 
         $host = $uri->getHost();
 
-        if ($uri->getPort()) {
+        if (!is_null($uri->getPort())) {
             $host .= ":" . $uri->getPort();
         }
 
@@ -161,27 +193,30 @@ class Request extends Message implements RequestInterface
     }
 
     /**
-     * @param string $method
-     * @return static
-     * @throws InvalidArgumentException
+     * Define a nova URI da requisição.
+     *
+     * @param string|Uri $uri Nova URI da requisição.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    protected function setMethod($method)
+    protected function setUri($uri): bool
     {
-        if (!is_string($method)) {
-            throw new InvalidArgumentException();
+        if (!is_string($uri) && !($uri instanceof Uri)) {
+            return false;
         }
 
-        if (!preg_match('/^[!#$%&\'*+.^_`\|~0-9a-z-]+$/i', $method)) {
-            throw new InvalidArgumentException();
+        if (is_string($uri)) {
+            $uri = new Uri($uri);
         }
 
-        $this->method = $method;
+        $this->uri = $uri;
 
-        return $this;
+        return true;
     }
 
     /**
-     * @return string
+     * Retorna o valor de Host a partir da URI da requisição.
+     *
+     * @return string Host a partir da URI da requisição.
      */
     protected function getHostFromUri(): string
     {
@@ -191,24 +226,5 @@ class Request extends Message implements RequestInterface
         return $host;
     }
 
-    /**
-     * @param $uri
-     * @return UriInterface
-     */
-    protected function createUri($uri): UriInterface
-    {
-        if ($uri instanceof UriInterface) {
-            return $uri;
-        }
 
-        if (is_string($uri)) {
-            return new Uri($uri);
-        }
-
-        if ($uri === null) {
-            return new Uri();
-        }
-
-        throw new InvalidArgumentException();
-    }
 }

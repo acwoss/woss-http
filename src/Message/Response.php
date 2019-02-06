@@ -9,10 +9,7 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
-use InvalidArgumentException;
-use Psr\Http\Message\ResponseInterface;
-
-class Response extends Message implements ResponseInterface
+class Response extends Message
 {
     /**
      * @var string
@@ -96,14 +93,23 @@ class Response extends Message implements ResponseInterface
         599 => 'Network Connect Timeout Error',
     ];
 
-    public function __construct($body = 'php://memory', int $status = 200, array $headers = [])
+    /**
+     * Inicializa uma nova instância de Response.
+     *
+     * @param string|resource|Stream $body Corpo da resposta.
+     * @param int $status Código da resposta.
+     * @param array $headers Lista de cabeçalhos da resposta.
+     */
+    public function __construct($body = 'php://memory', $status = 200, $headers = [])
     {
         parent::__construct($body, $headers);
         $this->setStatus($status);
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o código do estado da resposta.
+     *
+     * @return int Código do estado da resposta.
      */
     public function getStatusCode(): int
     {
@@ -111,43 +117,48 @@ class Response extends Message implements ResponseInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da resposta definindo um novo estado.
+     *
+     * @param int $code Novo código do estado da resposta.
+     * @param string $reasonPhrase Mensagem do estado da resposta.
+     * @return Response|null Cópia da resposta com o novo estado, nulo em caso de falha.
      */
-    public function withStatus($code, $reasonPhrase = '')
+    public function withStatus($code, $reasonPhrase = ''): ?Response
     {
         $new = clone $this;
-        $new->setStatus($code, $reasonPhrase);
+
+        if (!$new->setStatus($code, $reasonPhrase)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a mensagem do estado da resposta.
+     *
+     * @return string Mensagem do estado da resposta.
      */
-    public function getReasonPhrase()
+    public function getReasonPhrase(): string
     {
         return $this->reasonPhrase;
     }
 
     /**
-     * @param $code
-     * @param $reasonPhrase
-     * @return static
+     * Define um novo estado para a resposta.
+     *
+     * @param int $code Novo código do estado da resposta.
+     * @param string $reasonPhrase Nova mensagem do estado da resposta.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário
      */
-    protected function setStatus($code, $reasonPhrase = '')
+    protected function setStatus($code, $reasonPhrase = ''): bool
     {
-        if (!is_numeric($code) || is_float($code) || $code < 100 || $code > 599
-        ) {
-            throw new InvalidArgumentException(sprintf(
-                "Código de estado inválido {$code}; precisa ser um inteiro entre 100 e 599, inclusive"
-            ));
+        if (!is_numeric($code) || is_float($code) || $code < 100 || $code > 599) {
+            return false;
         }
 
         if (!is_string($reasonPhrase)) {
-            throw new InvalidArgumentException(sprintf(
-                'Mensagem de estado não suportado; esperado uma string, recebido %s',
-                is_object($reasonPhrase) ? get_class($reasonPhrase) : gettype($reasonPhrase)
-            ));
+            return false;
         }
 
         if ($reasonPhrase === '' && isset($this->phrases[$code])) {
@@ -155,8 +166,8 @@ class Response extends Message implements ResponseInterface
         }
 
         $this->reasonPhrase = $reasonPhrase;
-        $this->statusCode = (int)$code;
+        $this->statusCode = $code;
 
-        return $this;
+        return true;
     }
 }
