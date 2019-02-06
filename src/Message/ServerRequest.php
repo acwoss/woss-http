@@ -10,10 +10,7 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
-use InvalidArgumentException;
-use Psr\Http\Message\ServerRequestInterface;
-
-class ServerRequest extends Request implements ServerRequestInterface
+class ServerRequest extends Request
 {
     /**
      * @var array
@@ -45,17 +42,31 @@ class ServerRequest extends Request implements ServerRequestInterface
      */
     private $attributes;
 
+    /**
+     * Inicializa uma nova instância de ServerRequest.
+     *
+     * @param array $serverParams Lista de parâmetros do servidor.
+     * @param array $uploadedFiles Lista de arquivos enviados pela requisição.
+     * @param string|Uri $uri URI da requisição.
+     * @param string $method Método da requisição.
+     * @param string|resource|Stream $body Corpo da requisição.
+     * @param array $headers Lista de cabeçalhos da requisição.
+     * @param array $cookies Lista de cookies da requisição.
+     * @param array $queryParams Lista de parâmetros de busca da requisição.
+     * @param array|null $parsedBody Corpo da requisição já processado.
+     * @param string $protocol Versão do protocolo da requisição.
+     */
     public function __construct(
-        array $serverParams = [],
-        array $uploadedFiles = [],
-        $uri = null,
-        string $method = null,
+        $serverParams = [],
+        $uploadedFiles = [],
+        $uri = '',
+        $method = 'GET',
         $body = 'php://input',
-        array $headers = [],
-        array $cookies = [],
-        array $queryParams = [],
+        $headers = [],
+        $cookies = [],
+        $queryParams = [],
         $parsedBody = null,
-        string $protocol = '1.1'
+        $protocol = '1.1'
     )
     {
         parent::__construct($uri, $method, $body, $headers);
@@ -69,7 +80,9 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a lista de parâmetros do servidor.
+     *
+     * @return array Lista de parâmetros do servidor.
      */
     public function getServerParams(): array
     {
@@ -77,7 +90,43 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define os novos parâmetros de servidor da requisição.
+     *
+     * @param array $serverParams Lista de novos parâmetros da requisição.
+     * @return bool Verdadeiro em caso de sucesso, falso em caso contrário.
+     */
+    protected function setServerParams($serverParams): bool
+    {
+        if (!is_array($serverParams)) {
+            return false;
+        }
+
+        $this->serverParams = $serverParams;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da requisição definindo os novos parãmetros do servidor.
+     *
+     * @param array $serverParams Lista dos novos parãmetros do servidor.
+     * @return ServerRequest|null Cópia da requisição com os novos parâmetros, nulo em caso de falha.
+     */
+    public function withServerParams($serverParams): ?ServerRequest
+    {
+        $new = clone $this;
+
+        if (!$new->setServerParams($serverParams)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
+     * Retorna a lista de cookies da requisição.
+     *
+     * @return array Lista de cookies da requisição.
      */
     public function getCookieParams(): array
     {
@@ -85,18 +134,43 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define a lista de cookies da requisição.
+     *
+     * @param array $cookieParams Lista de novos cookies da requisição.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function withCookieParams(array $cookies)
+    protected function setCookieParams($cookieParams): bool
+    {
+        if (!is_array($cookieParams)) {
+            return false;
+        }
+
+        $this->cookieParams = $cookieParams;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da requisição definindo os novos cookies.
+     *
+     * @param array $cookieParams Lista dos novos cookies da requisição.
+     * @return ServerRequest|null Cópia da requisição com os novos cookies, nulo em caso de falha.
+     */
+    public function withCookieParams($cookieParams): ?ServerRequest
     {
         $new = clone $this;
-        $new->cookieParams = $cookies;
+
+        if (!$new->setCookieParams($cookieParams)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a lista de parâmetros de busca da requisição.
+     *
+     * @return array Lista de parâmetros de busca da requisição.
      */
     public function getQueryParams(): array
     {
@@ -104,39 +178,99 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define novos parâmetros de busca para a requisição.
+     *
+     * @param array $queryParams Lista de novos parâmetros de busca.
+     * @return bool Verdadeiro em caso de sucesso, falha caso contrário.
      */
-    public function withQueryParams(array $query)
+    protected function setQueryParams($queryParams): bool
+    {
+        if (!is_array($queryParams)) {
+            return false;
+        }
+
+        $this->queryParams = $queryParams;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da requisição definindo novos parâmetros de busca.
+     *
+     * @param array $queryParams Lista dos novos parâmetros de busca.
+     * @return ServerRequest|null Cópia da requisição com os novos parâmetros de busca, nulo em caso de falha.
+     */
+    public function withQueryParams($queryParams): ?ServerRequest
     {
         $new = clone $this;
-        $new->queryParams = $query;
+
+        if (!$new->setQueryParams($queryParams)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a lista de arquivos enviados pela requisição.
+     *
+     * @return array Lista de arquivos enviados pela requisição.
      */
-    public function getUploadedFiles()
+    public function getUploadedFiles(): array
     {
         return $this->uploadedFiles;
     }
 
     /**
-     * {@inheritdoc}
+     * Define novos arquivos enviados pela requisição.
+     *
+     * @param array $uploadedFiles Lista com novos arquivos enviados pela requisição.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function withUploadedFiles(array $uploadedFiles)
+    protected function setUploadedFiles($uploadedFiles): bool
     {
-        $this->assertUploadedFiles($uploadedFiles);
+        if (!is_array($uploadedFiles)) {
+            return false;
+        }
 
+        foreach ($uploadedFiles as $key => $uploadedFile) {
+            if (is_array($uploadedFile)) {
+                foreach ($uploadedFile as $file) {
+                    if (!($file instanceof UploadedFile)) {
+                        return false;
+                    }
+                }
+            } else if (!($uploadedFile instanceof UploadedFile)) {
+                return false;
+            }
+        }
+
+        $this->uploadedFiles = $uploadedFiles;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da requisição definindo novos arquivos enviados.
+     *
+     * @param array $uploadedFiles Lista de novos arquivos enviados pela requisição.
+     * @return ServerRequest|null Cópia da requisição com os novos arquivos, nulo em caso de falha.
+     */
+    public function withUploadedFiles($uploadedFiles): ?ServerRequest
+    {
         $new = clone $this;
-        $new->uploadedFiles = $uploadedFiles;
+
+        if (!$new->setUploadedFiles($uploadedFiles)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o corpo da requisição já processado.
+     *
+     * @return array|object|null Corpo da requisição já processado.
      */
     public function getParsedBody()
     {
@@ -144,38 +278,59 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define um novo corpo processado para a requisição.
+     *
+     * @param array|object|null $parsedBody Novo corpo processado para a requisição.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function withParsedBody($data)
+    protected function setParsedBody($parsedBody): bool
     {
-        if (!is_array($data) && !is_object($data) && null !== $data) {
-            throw new InvalidArgumentException(sprintf(
-                '%s expects a null, array, or object argument; received %s',
-                __METHOD__,
-                gettype($data)
-            ));
+        if (!is_array($parsedBody) && !is_object($parsedBody) && !is_null($parsedBody)) {
+            return false;
         }
 
+        $this->parsedBody = $parsedBody;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da requisição definindo o novo corpo processado.
+     *
+     * @param array|object|null $parsedBody Novo corpo processado para a requisição.
+     * @return ServerRequest|null Cópia da requisição com o novo corpo processado, nulo em caso de falha.
+     */
+    public function withParsedBody($parsedBody)
+    {
         $new = clone $this;
-        $new->parsedBody = $data;
+
+        if (!$new->setParsedBody($parsedBody)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a lista de atributos da requisição.
+     *
+     * @return array Lista de atributos da requisição.
      */
-    public function getAttributes()
+    public function getAttributes(): array
     {
         return $this->attributes;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o valor de um atributo da requisição.
+     *
+     * @param mixed $name Nome do atributo da requisição.
+     * @param mixed $default Valor a ser retornado quando o atributo não for encontrado.
+     * @return mixed Valor do atributo da requisição.
      */
     public function getAttribute($name, $default = null)
     {
-        if (!array_key_exists($name, $this->attributes)) {
+        if (!$this->hasAttribute($name)) {
             return $default;
         }
 
@@ -183,95 +338,110 @@ class ServerRequest extends Request implements ServerRequestInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Verifica se a requisição um atributo.
+     *
+     * @param mixed $name Nome do atributo da requisição.
+     * @return bool Verdadeiro se a requisição possuir o atributo, falso em caso contrário.
      */
-    public function withAttribute($name, $value)
+    public function hasAttribute($name): bool
+    {
+        return array_key_exists($name, $this->attributes);
+    }
+
+    /**
+     * Define o atributo da requisição.
+     *
+     * @param mixed $name Nome do atributo da requisição.
+     * @param mixed $value Valor do atributo da requisição.
+     * @return bool Verdadeiro em caso de sucesso, false caso contrário.
+     */
+    protected function setAttribute($name, $value): bool
+    {
+        $this->attributes[$name] = $value;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da requisição definindo o novo atributo.
+     *
+     * @param mixed $name Nome do atributo da requisição.
+     * @param mixed $value Valor do atributo da requisição.
+     * @return ServerRequest|null Cópia da requisição com o novo atributo, nulo em caso de falha.
+     */
+    public function withAttribute($name, $value): ?ServerRequest
     {
         $new = clone $this;
-        $new->attributes[$name] = $value;
+
+        if (!$new->setAttribute($name, $value)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia da requisição sem o atributo especificado.
+     *
+     * @param mixed $name Nome do atributo da requisição.
+     * @return ServerRequest|null Cópia da requisição sem o atributo, nulo em caso de falha.
      */
     public function withoutAttribute($name)
     {
         $new = clone $this;
-        unset($new->attributes[$name]);
+
+        if ($new->hasAttribute($name)) {
+            unset($new->attributes[$name]);
+        }
 
         return $new;
     }
 
     /**
-     * {@inheritdoc}
+     * Cria uma requisição a partir das variáveis super globais no servidor.
+     *
+     * @return ServerRequest Requisição gerada a partir das variáveis super globais.
      */
-    protected function assertUploadedFiles(array $uploadedFiles)
+    public static function fromGlobals(): ServerRequest
     {
-        foreach ($uploadedFiles as $key => $uploadedFile) {
-            if (!$uploadedFile instanceof UploadedFile) {
-                throw new InvalidArgumentException(sprintf(
-                    "Objeto não suportado na posição %d. Era esperado uma instância de UploadedFile, mas chegou %s",
-                    $key,
-                    is_object($uploadedFile) ? get_class($uploadedFile) : gettype($uploadedFile)
-                ));
+        $getAllHeaders = function_exists('getallheaders') ? 'getallheaders' : function ($server) {
+            $headers = [];
+            foreach ($server as $name => $value) {
+                if (substr($name, 0, 5) == 'HTTP_') {
+                    $name = str_replace(
+                        ' ',
+                        '-',
+                        ucwords(
+                            strtolower(
+                                str_replace(
+                                    '_',
+                                    ' ',
+                                    substr($name, 5)
+                                )
+                            )
+                        )
+                    );
+
+                    $headers[$name] = $value;
+                }
             }
-        }
-    }
 
-    /**
-     * @param array $serverParams
-     * @return static
-     */
-    protected function setServerParams(array $serverParams)
-    {
-        $this->serverParams = $serverParams;
+            return $headers;
+        };
 
-        return $this;
-    }
+        $headers = call_user_func($getAllHeaders, $server ?? $_SERVER);
 
-    /**
-     * @param array $uploadedFiles
-     * @return static
-     */
-    protected function setUploadedFiles(array $uploadedFiles)
-    {
-        $this->uploadedFiles = $uploadedFiles;
-
-        return $this;
-    }
-
-    /**
-     * @param array $cookieParams
-     * @return static
-     */
-    protected function setCookieParams(array $cookieParams)
-    {
-        $this->cookieParams = $cookieParams;
-
-        return $this;
-    }
-
-    /**
-     * @param array $queryParams
-     * @return static
-     */
-    protected function setQueryParams(array $queryParams)
-    {
-        $this->queryParams = $queryParams;
-
-        return $this;
-    }
-
-    /**
-     * @param array|object|null $parsedBody
-     * @return static
-     */
-    protected function setParsedBody($parsedBody)
-    {
-        $this->parsedBody = $parsedBody;
-
-        return $this;
+        return new static(
+            $_SERVER,
+            UploadedFile::createFromArray($_FILES),
+            $_SERVER['REQUEST_URI'],
+            $_SERVER['REQUEST_METHOD'],
+            'php://input',
+            $headers,
+            $_COOKIE,
+            $_GET,
+            $_POST,
+            $_SERVER['SERVER_PROTOCOL']
+        );
     }
 }

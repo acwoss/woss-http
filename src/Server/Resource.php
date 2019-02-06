@@ -10,18 +10,16 @@ declare(strict_types=1);
 
 namespace Woss\Http\Server;
 
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
+use Woss\Http\Message\Request;
 use Woss\Http\Message\Response;
 use Woss\Http\Message\Stream;
 
-class Resource implements RequestHandlerInterface
+class Resource
 {
     /**
      * {@inheritdoc}
      */
-    public function handle(ServerRequestInterface $request): ResponseInterface
+    public function handle(Request $request): Response
     {
         $method = strtolower($request->getMethod());
 

@@ -9,16 +9,15 @@ declare(strict_types=1);
 
 namespace Woss\Http\Client;
 
-use Psr\Http\Client\ClientInterface;
-use Psr\Http\Message\RequestInterface;
-use Psr\Http\Message\ResponseInterface;
+use Woss\Http\Message\Request;
+use Woss\Http\Message\Response;
 
-class Client implements ClientInterface
+class Client
 {
     /**
      * {@inheritdoc}
      */
-    public function sendRequest(RequestInterface $request): ResponseInterface
+    public function send(Request $request): Response
     {
         // TODO: Implement sendRequest() method.
     }

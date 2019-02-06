@@ -9,24 +9,7 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
-use InvalidArgumentException;
-use Psr\Http\Message\StreamInterface;
-use Psr\Http\Message\UploadedFileInterface;
-use RuntimeException;
-use function dirname;
-use function fclose;
-use function fopen;
-use function fwrite;
-use function is_dir;
-use function is_resource;
-use function is_string;
-use function is_writable;
-use function move_uploaded_file;
-use function strpos;
-use const PHP_SAPI;
-use const UPLOAD_ERR_OK;
-
-class UploadedFile implements UploadedFileInterface
+class UploadedFile
 {
     /**
      * @var int|null
@@ -51,77 +34,58 @@ class UploadedFile implements UploadedFileInterface
     /**
      * @var bool
      */
-    private $moved;
+    private $moved = false;
 
     /**
      * @var string|null
      */
-    private $file;
+    private $file = null;
 
     /**
-     * @var StreamInterface|null
+     * @var Stream|null
      */
-    private $stream;
+    private $stream = null;
 
     /**
-     * UploadedFile constructor.
-     * @param $streamOrFile
-     * @param int $size
-     * @param int $errorStatus
-     * @param string|null $clientFilename
-     * @param string|null $clientMediaType
+     * Inicializa uma nova instância de UploadedFile.
+     *
+     * @param string|resource|Stream $streamOrFile Caminho, recurso ou Stream a ser utilizado.
+     * @param int|null $size Tamanho do arquivo.
+     * @param int $errorStatus Código de erro durante o upload do arquivo.
+     * @param string|null $clientFilename Nome do arquivo.
+     * @param string|null $clientMediaType Extensão do arquivo.
      */
     public function __construct(
         $streamOrFile,
-        int $size,
-        int $errorStatus,
-        string $clientFilename = null,
-        string $clientMediaType = null
+        $size = null,
+        $errorStatus = UPLOAD_ERR_OK,
+        $clientFilename = null,
+        $clientMediaType = null
     )
     {
-        if ($errorStatus === UPLOAD_ERR_OK) {
-            if (is_string($streamOrFile)) {
-                $this->file = $streamOrFile;
-            }
-
-            if (is_resource($streamOrFile)) {
-                $this->stream = new Stream($streamOrFile);
-            }
-
-            if (!$this->file && !$this->stream) {
-                if (!$streamOrFile instanceof StreamInterface) {
-                    throw new InvalidArgumentException();
-                }
-                $this->stream = $streamOrFile;
-            }
+        if (UPLOAD_ERR_OK === $errorStatus) {
+            $this->setStream($streamOrFile);
         }
 
         $this->setSize($size);
-
-        if (0 > $errorStatus || 8 < $errorStatus) {
-            throw new InvalidArgumentException();
-        }
-
         $this->setError($errorStatus);
         $this->setClientFilename($clientFilename);
         $this->setClientMediaType($clientMediaType);
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a Stream para o arquivo enviado.
+     *
+     * @return Stream|null Stream para o arquivo enviado, nulo em caso de falha.
      */
-    public function getStream(): StreamInterface
+    public function getStream(): Stream
     {
-        if ($this->error !== UPLOAD_ERR_OK) {
-            throw new RuntimeException();
-        }
-
-        if ($this->moved) {
-            throw new RuntimeException();
-        }
-
-        if ($this->stream instanceof StreamInterface) {
-            return $this->stream;
+        if (
+            $this->error !== UPLOAD_ERR_OK
+            || $this->isMoved()
+            || $this->stream instanceof Stream
+        ) {
+            return null;
         }
 
         $this->stream = new Stream($this->file);
@@ -129,43 +93,83 @@ class UploadedFile implements UploadedFileInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define a Stream do arquivo enviado.
+     *
+     * @param string|resource|Stream $streamOrFile Caminho, recurso ou Stream do arquivo no servidor.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function moveTo($targetPath)
+    protected function setStream($streamOrFile): bool
     {
-        if ($this->moved) {
-            throw new RuntimeException();
+        if (!is_string($streamOrFile) && !is_resource($streamOrFile) && !($streamOrFile instanceof Stream)) {
+            return false;
         }
 
-        if ($this->error !== UPLOAD_ERR_OK) {
-            throw new RuntimeException();
+        $file = null;
+        $stream = null;
+
+        if (is_string($streamOrFile)) {
+            $file = $streamOrFile;
         }
 
-        if (!is_string($targetPath) || empty($targetPath)) {
-            throw new InvalidArgumentException();
+        if (is_string($streamOrFile) || is_resource($streamOrFile)) {
+            $stream = new Stream($streamOrFile);
+        }
+
+        $this->stream = $stream;
+        $this->file = $file;
+
+        return true;
+    }
+
+    /**
+     * Retorna se o arquivo já foi movido anteriormente.
+     *
+     * @return bool Verdadeiro caso o arquivo já foi movido, falso caso contrário.
+     */
+    public function isMoved(): bool
+    {
+        return $this->moved;
+    }
+
+    /**
+     * Move o arquivo para o destino especificado.
+     *
+     * @param string $targetPath Caminho de destino do arquivo.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    public function moveTo($targetPath): bool
+    {
+        if (
+            $this->isMoved()
+            || (UPLOAD_ERR_OK !== $this->error)
+            || !is_string($targetPath)
+            || empty($targetPath)
+        ) {
+            return false;
         }
 
         $targetDirectory = dirname($targetPath);
 
-        if (!is_dir($targetDirectory) || !is_writable($targetDirectory)) {
-            throw new InvalidArgumentException();
+        if (
+            !is_dir($targetDirectory)
+            || !is_writable($targetDirectory)
+        ) {
+            return false;
         }
 
-        $sapi = PHP_SAPI;
-
-        if (empty($sapi) || 0 === strpos($sapi, 'cli') || !$this->file) {
-            $this->writeFile($targetPath);
-        } else {
-            if (false === move_uploaded_file($this->file, $targetPath)) {
-                throw new RuntimeException();
-            }
+        if (false === move_uploaded_file($this->file, $targetPath)) {
+            return false;
         }
 
         $this->moved = true;
+
+        return true;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o tamanho do arquivo
+     *
+     * @return int|null Tamanho do arquivo, nulo em caso de falha.
      */
     public function getSize(): ?int
     {
@@ -173,7 +177,34 @@ class UploadedFile implements UploadedFileInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define o tamanho do arquivo.
+     *
+     * @param int|null $size Tamanho do arquivo. Quando nulo será definido a partir da Stream.
+     * @return bool Verdadeiro em caso de sucesso, falso em caso contrpario.
+     */
+    protected function setSize($size): bool
+    {
+        if (!is_int($size) && !is_null($size)) {
+            return false;
+        }
+
+        if (is_null($size)) {
+            if (is_null($this->stream)) {
+                return false;
+            }
+
+            $size = $this->stream->getSize();
+        }
+
+        $this->size = $size;
+
+        return true;
+    }
+
+    /**
+     * Retorna o código do erro durante o upload.
+     *
+     * @return int Código do erro.
      */
     public function getError(): int
     {
@@ -181,7 +212,30 @@ class UploadedFile implements UploadedFileInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define o código de erro durante o upload do arquivo.
+     *
+     * @param int $error Código do erro.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setError($error): bool
+    {
+        if (!is_int($error)) {
+            return false;
+        }
+
+        if ($error < 0 || $error > 8) {
+            return false;
+        }
+
+        $this->error = $error;
+
+        return true;
+    }
+
+    /**
+     * Retorna o nome do arquivo no cliente.
+     *
+     * @return string|null Nome do arquivo no cliente, nulo em caso de falha.
      */
     public function getClientFilename(): ?string
     {
@@ -189,7 +243,26 @@ class UploadedFile implements UploadedFileInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define o nome do arquivo no cliente.
+     *
+     * @param string|null $clientFilename Nome do arquivo no cliente.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setClientFilename($clientFilename): bool
+    {
+        if (!is_string($clientFilename) && !is_null($clientFilename)) {
+            return false;
+        }
+
+        $this->clientFilename = $clientFilename;
+
+        return true;
+    }
+
+    /**
+     * Retorna o tipo do arquivo no cliente.
+     *
+     * @return string|null Tipo do arquivo no cliente, nulo em caso de falha.
      */
     public function getClientMediaType(): ?string
     {
@@ -197,80 +270,54 @@ class UploadedFile implements UploadedFileInterface
     }
 
     /**
-     * Escreve a stream interna no arquivo especificado.
+     * Define o tipo do arquivo no cliente.
      *
-     * @param string $path
+     * @param string|null $clientMediaType Tipo do arquivo no cliente.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    private function writeFile(string $path): void
+    protected function setClientMediaType($clientMediaType): bool
     {
-        $handle = fopen($path, 'wb+');
-
-        if (false === $handle) {
-            throw new RuntimeException();
+        if (!is_string($clientMediaType) && !is_null($clientMediaType)) {
+            return false;
         }
 
-        $stream = $this->getStream();
-        $stream->rewind();
-
-        while (!$stream->eof()) {
-            fwrite($handle, $stream->read(4096));
-        }
-
-        fclose($handle);
-    }
-
-    /**
-     * @param int|null $size
-     * @return static
-     */
-    protected function setSize(?int $size)
-    {
-        $this->size = $size;
-
-        return $this;
-    }
-
-    /**
-     * @param int $error
-     * @return static
-     */
-    protected function setError(int $error)
-    {
-        $this->error = $error;
-
-        return $this;
-    }
-
-    /**
-     * @param string|null $clientFilename
-     * @return static
-     */
-    protected function setClientFilename(?string $clientFilename)
-    {
-        $this->clientFilename = $clientFilename;
-
-        return $this;
-    }
-
-    /**
-     * @param string|null $clientMediaType
-     * @return static
-     */
-    protected function setClientMediaType(?string $clientMediaType)
-    {
         $this->clientMediaType = $clientMediaType;
 
-        return $this;
+        return true;
     }
 
     /**
-     * @param StreamInterface|null $stream
-     * @return static
+     * Retorna uma lista de UploadedFiles a partir de um array.
+     *
+     * @param array $files Lista de arquivos em formato de array.
+     * @return array Lista de UploadedFiles.
      */
-    protected function setStream(?StreamInterface $stream)
+    public static function createFromArray($files): array
     {
-        $this->stream = $stream;
+        $uploadedFiles = [];
 
-        return $this;
+        $create = function ($name, $type, $size, $tmpName, $error): UploadedFile
+        {
+            return new static($tmpName, $size, $error, $name, $type);
+        };
+
+        foreach($files as $key => $file) {
+            $uploadedFiles[$key] = is_array($file['error']) ? array_map(
+                $create,
+                $file['name'],
+                $file['type'],
+                $file['size'],
+                $file['tmp_name'],
+                $file['error']
+            ) : $create(
+                $file['name'],
+                $file['type'],
+                $file['size'],
+                $file['tmp_name'],
+                $file['error']
+            );
+        }
+
+        return $uploadedFiles;
     }
 }

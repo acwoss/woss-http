@@ -10,31 +10,7 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
-use InvalidArgumentException;
-use Psr\Http\Message\StreamInterface;
-use RuntimeException;
-use function array_key_exists;
-use function fclose;
-use function feof;
-use function fopen;
-use function fread;
-use function fseek;
-use function fstat;
-use function ftell;
-use function fwrite;
-use function get_resource_type;
-use function is_int;
-use function is_resource;
-use function is_string;
-use function restore_error_handler;
-use function set_error_handler;
-use function stream_get_contents;
-use function stream_get_meta_data;
-use function strstr;
-use const E_WARNING;
-use const SEEK_SET;
-
-class Stream implements StreamInterface
+class Stream
 {
     /**
      * @var resource|null
@@ -42,56 +18,38 @@ class Stream implements StreamInterface
     private $resource;
 
     /**
-     * @var string|resource
+     * Inicializa uma nova instância de Stream.
+     *
+     * @param string|resource $stream Conteúdo ou arquivo para se gerar a Stream.
+     * @param string $mode Modo que será aberto a Stream.
      */
-    private $stream;
-
-    /**
-     * @param string|resource $stream
-     * @param string $mode Mode with which to open stream
-     * @throws InvalidArgumentException
-     */
-    public function __construct($stream, string $mode = 'r')
+    public function __construct($stream, $mode = 'r')
     {
-        $this->setStream($stream, $mode);
+        $this->setResource($stream, $mode);
     }
 
     /**
-     * {@inheritdoc}
+     * Fecha a Stream.
+     *
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function __toString()
+    public function close(): bool
     {
-        if (!$this->isReadable()) {
-            return '';
-        }
-
-        try {
-            if ($this->isSeekable()) {
-                $this->rewind();
-            }
-
-            return $this->getContents();
-        } catch (RuntimeException $e) {
-            return '';
-        }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function close()
-    {
-        if (!$this->resource) {
-            return;
+        if (!is_resource($this->resource)) {
+            return false;
         }
 
         $resource = $this->detach();
 
         fclose($resource);
+
+        return true;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o recurso da Stream após separá-lo.
+     *
+     * @return resource|null Recurso separado da Stream, nulo em caso de falha.
      */
     public function detach()
     {
@@ -102,17 +60,19 @@ class Stream implements StreamInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o tamanho da Stream.
+     *
+     * @return int|null Tamanho da Stream, nulo em caso de falha.
      */
     public function getSize(): ?int
     {
-        if (null === $this->resource) {
+        if (!is_resource($this->resource)) {
             return null;
         }
 
         $stats = fstat($this->resource);
 
-        if ($stats !== false) {
+        if (false !== $stats) {
             return $stats['size'];
         }
 
@@ -120,29 +80,33 @@ class Stream implements StreamInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna a posição de leitura/gravação do ponteiro do arquivo.
+     *
+     * @return int|null Posição de leitura/gravação do ponteiro.
      */
-    public function tell()
+    public function tell(): ?int
     {
-        if (!$this->resource) {
-            throw new RuntimeException();
+        if (!is_resource($this->resource)) {
+            return null;
         }
 
         $result = ftell($this->resource);
 
-        if (!is_int($result)) {
-            throw new RuntimeException();
+        if (false === $result) {
+            return null;
         }
 
         return $result;
     }
 
     /**
-     * {@inheritdoc}
+     * Verifica se o ponteiro atingiu o final do arquivo.
+     *
+     * @return bool Verdadeiro se o ponteiro atingiu o final do arquivo, falso caso contrário.
      */
-    public function eof()
+    public function eof(): bool
     {
-        if (!$this->resource) {
+        if (!is_resource($this->resource)) {
             return true;
         }
 
@@ -150,11 +114,13 @@ class Stream implements StreamInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Verifica se a Stream pode ser consultada.
+     *
+     * @return bool Verdadeiro se a Stream puder ser consultada, falso caso contrário.
      */
-    public function isSeekable()
+    public function isSeekable(): bool
     {
-        if (!$this->resource) {
+        if (!is_resource($this->resource)) {
             return false;
         }
 
@@ -164,39 +130,45 @@ class Stream implements StreamInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Procura (seeks) em um ponteiro de arquivo.
+     *
+     * @param int $offset Posição até onde deseja movimentar o ponteiro.
+     * @param int $whence Configuração sobre a movimentação do ponteiro.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function seek($offset, $whence = SEEK_SET)
+    public function seek($offset, $whence = SEEK_SET): bool
     {
-        if (!$this->resource) {
-            throw new RuntimeException();
-        }
-
-        if (!$this->isSeekable()) {
-            throw new RuntimeException();
+        if (!is_int($offset) || !is_int($whence) || !$this->isSeekable()) {
+            return false;
         }
 
         $result = fseek($this->resource, $offset, $whence);
 
         if (0 !== $result) {
-            throw new RuntimeException();
+            return false;
         }
+
+        return true;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o ponteiro do arquivo para o início.
+     *
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function rewind()
+    public function rewind(): bool
     {
-        $this->seek(0);
+        return $this->seek(0);
     }
 
     /**
-     * {@inheritdoc}
+     * Verifica se o recurso possui permissão de escrita.
+     *
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function isWritable()
+    public function isWritable(): bool
     {
-        if (!$this->resource) {
+        if (!is_resource($this->resource)) {
             return false;
         }
 
@@ -204,101 +176,110 @@ class Stream implements StreamInterface
         $mode = $meta['mode'];
 
         return (
-            strstr($mode, 'x')
-            || strstr($mode, 'w')
-            || strstr($mode, 'c')
-            || strstr($mode, 'a')
-            || strstr($mode, '+')
+            false !== strstr($mode, 'x')
+            || false !== strstr($mode, 'w')
+            || false !== strstr($mode, 'c')
+            || false !== strstr($mode, 'a')
+            || false !== strstr($mode, '+')
         );
     }
 
     /**
-     * {@inheritdoc}
+     * Escreve o conteúdo no recurso na posição atual do ponteiro.
+     *
+     * @param string $string Conteúdo a ser escrito na Stream.
+     * @return int|null Quantidade de bytes escrito, nulo em caso de falha.
      */
-    public function write($string)
+    public function write($string): ?int
     {
-        if (!$this->resource) {
-            throw new RuntimeException();
-        }
-
-        if (!$this->isWritable()) {
-            throw new RuntimeException();
+        if (!is_string($string) || !$this->isWritable()) {
+            return null;
         }
 
         $result = fwrite($this->resource, $string);
 
         if (false === $result) {
-            throw new RuntimeException();
+            return null;
         }
 
         return $result;
     }
 
     /**
-     * {@inheritdoc}
+     * Verifica se o recurso possui permissão de leitura.
+     *
+     * @return bool Verdadeiro se o recurso puder ser lido, falso em caso contrário.
      */
-    public function isReadable()
+    public function isReadable(): bool
     {
-        if (!$this->resource) {
+        if (!is_resource($this->resource)) {
             return false;
         }
 
         $meta = stream_get_meta_data($this->resource);
         $mode = $meta['mode'];
 
-        return (strstr($mode, 'r') || strstr($mode, '+'));
+        return (false !== strstr($mode, 'r') || false !== strstr($mode, '+'));
     }
 
     /**
-     * {@inheritdoc}
+     * Leitura binary-safe de arquivo.
+     *
+     * @param int $length Número de bytes a serem lidos.
+     * @return string|null Conteúdo lido, nulo em caso de falha.
      */
-    public function read($length)
+    public function read($length): ?string
     {
-        if (!$this->resource) {
-            throw new RuntimeException();
-        }
-
-        if (!$this->isReadable()) {
-            throw new RuntimeException();
+        if (!is_int($length) || !$this->isReadable()) {
+            return null;
         }
 
         $result = fread($this->resource, $length);
 
         if (false === $result) {
-            throw new RuntimeException();
+            return null;
         }
 
         return $result;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o conteúdo da Stream como string.
+     *
+     * @return string|null Conteúdo da Stream.
      */
-    public function getContents()
+    public function getContents(): ?string
     {
         if (!$this->isReadable()) {
-            throw new RuntimeException();
+            return null;
         }
 
         $result = stream_get_contents($this->resource);
 
         if (false === $result) {
-            throw new RuntimeException();
+            return null;
         }
 
         return $result;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna as informações sobre o recurso.
+     *
+     * @param string|null $key Nome do item a ser retornado. Se nulo, retornará todos.
+     * @return mixed Informações desejadas sobre o recurso, nulo em caso de falha.
      */
     public function getMetadata($key = null)
     {
-        if (null === $key) {
-            return stream_get_meta_data($this->resource);
+        if (!is_resource($this->resource)) {
+            return null;
         }
 
         $metadata = stream_get_meta_data($this->resource);
+
+        if (is_null($key)) {
+            return $metadata;
+        }
 
         if (!array_key_exists($key, $metadata)) {
             return null;
@@ -308,44 +289,46 @@ class Stream implements StreamInterface
     }
 
     /**
-     * @param string|resource $stream
-     * @param string $mode
-     * @return static
-     * @throws InvalidArgumentException
+     * Define o recurso da Stream.
+     *
+     * @param string|resource $stream String ou recurso a ser definido na Stream.
+     * @param string $mode Modo que será aberto a Stream.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    protected function setStream($stream, string $mode = 'r')
+    protected function setResource($stream, $mode = 'r'): bool
     {
-        $error = null;
-        $resource = $stream;
+        if (!is_string($stream) || !is_resource($stream) || !is_string($mode)) {
+            return false;
+        }
 
         if (is_string($stream)) {
-            set_error_handler(function ($e) use (&$error) {
-                if ($e !== E_WARNING) {
-                    return;
-                }
+            $stream = fopen($stream, $mode);
 
-                $error = $e;
-            });
-
-            $resource = fopen($stream, $mode);
-
-            restore_error_handler();
+            if (false === $stream) {
+                return false;
+            }
         }
 
-        if ($error) {
-            throw new InvalidArgumentException();
+        $this->resource = $stream;
+
+        return true;
+    }
+
+    /**
+     * Retorna a representação em string da Stream.
+     *
+     * @return string|null Representação da Stream, nulo em caso de falha.
+     */
+    public function __toString(): string
+    {
+        if (!$this->isReadable()) {
+            return '';
         }
 
-        if (!is_resource($resource) || 'stream' !== get_resource_type($resource)) {
-            throw new InvalidArgumentException();
+        if ($this->isSeekable() && !$this->rewind()) {
+            return '';
         }
 
-        if ($stream !== $resource) {
-            $this->stream = $stream;
-        }
-
-        $this->resource = $resource;
-
-        return $this;
+        return $this->getContents();
     }
 }
