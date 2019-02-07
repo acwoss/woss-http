@@ -12,6 +12,7 @@ namespace Woss\Http\Server;
 
 use Woss\Http\Message\Request;
 use Woss\Http\Message\Response;
+use Woss\Http\Message\Stream;
 
 class Resource
 {
@@ -31,17 +32,19 @@ class Resource
         $method = strtolower($request->getMethod());
 
         if (!method_exists($this, $method)) {
-            $body = json_encode([
+            $content = json_encode([
                 'message' => "O método {$method} não é permitido para o recurso " . get_class($this)
             ]);
 
-            $methodsAllowed = array_intersect(get_class_methods($this), self::HTTP_METHODS);
+            $body = new Stream('php://memory', 'w');
+            $body->write($content);
 
+            $methodsAllowed = array_intersect(get_class_methods($this), self::HTTP_METHODS);
             $methodsAllowed = join(', ', array_map('strtoupper', $methodsAllowed));
 
             $response = new Response($body, 405, [
                 'Content-Type' => 'application/json',
-                'Content-Length' => strlen($body),
+                'Content-Length' => strlen($content),
                 'Allow' => $methodsAllowed
             ]);
 

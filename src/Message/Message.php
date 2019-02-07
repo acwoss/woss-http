@@ -258,8 +258,8 @@ abstract class Message
         foreach ($value as $v) {
             if (
                 (!is_string($v) && !is_numeric($v)) ||
-                preg_match("#(?:(?:(?<!\r)\n)|(?:\r(?!\n))|(?:\r\n(?![ \t])))#", $v) ||
-                preg_match('/[^\x09\x0a\x0d\x20-\x7E\x80-\xFE]/', $v)
+                preg_match("#(?:(?:(?<!\r)\n)|(?:\r(?!\n))|(?:\r\n(?![ \t])))#", (string)$v) ||
+                preg_match('/[^\x09\x0a\x0d\x20-\x7E\x80-\xFE]/', (string)$v)
             ) {
                 return false;
             }
