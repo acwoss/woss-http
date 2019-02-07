@@ -10,6 +10,8 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
+
 class Stream
 {
     /**
@@ -22,12 +24,12 @@ class Stream
      *
      * @param string|resource $stream Conteúdo ou arquivo para se gerar a Stream.
      * @param string $mode Modo que será aberto a Stream.
-     * @throws \InvalidArgumentException Quando o tipo de $stream é inválido.
+     * @throws InvalidArgumentException Quando o tipo de $stream é inválido.
      */
     public function __construct($stream, $mode = 'r')
     {
         if (!$this->setResource($stream, $mode)) {
-            throw new \InvalidArgumentException(sprintf(
+            throw new InvalidArgumentException(sprintf(
                 "Tipo inválido: %s. Esperado string ou resource",
                 is_object($stream) ? get_class($stream) : gettype($stream)
             ));
@@ -43,7 +45,7 @@ class Stream
      */
     protected function setResource($stream, $mode = 'r'): bool
     {
-        if (!is_string($stream) && !is_resource($stream) && !is_string($mode)) {
+        if (!is_string($stream) && !is_resource($stream) || !is_string($mode)) {
             return false;
         }
 
