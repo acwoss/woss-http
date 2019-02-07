@@ -39,14 +39,14 @@ abstract class Message
      */
     protected function __construct($body = 'php://memory', $headers = [])
     {
-        if (false === $this->setBody($body, 'wb+')) {
+        if (!$this->setBody($body, 'wb+')) {
             throw new InvalidArgumentException(sprintf(
                 "Tipo %s inválido para o corpo da mensagem",
                 is_object($body) ? get_class($body) : gettype($body)
             ));
         }
 
-        if (false === $this->setHeaders($headers)) {
+        if (!$this->setHeaders($headers)) {
             throw new InvalidArgumentException(
                 'Valor de $headers é inválido para definir os cabeçalhos da mensagem'
             );

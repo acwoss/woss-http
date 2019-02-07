@@ -80,37 +80,37 @@ class ServerRequest extends Request
     {
         parent::__construct($uri, $method, $body, $headers);
 
-        if (false === $this->setServerParams($serverParams)) {
+        if (!$this->setServerParams($serverParams)) {
             throw new InvalidArgumentException(
                 'Valor de $serverParams inválido para criar uma requisição'
             );
         }
 
-        if (false === $this->setUploadedFiles($uploadedFiles)) {
+        if (!$this->setUploadedFiles($uploadedFiles)) {
             throw new InvalidArgumentException(
                 'Valor de $uploadedFiles inválido para criar uma requisição'
             );
         }
 
-        if (false === $this->setCookieParams($cookies)) {
+        if (!$this->setCookieParams($cookies)) {
             throw new InvalidArgumentException(
                 'Valor de $cookies inválido para criar uma requisição'
             );
         }
 
-        if (false === $this->setQueryParams($queryParams)) {
+        if (!$this->setQueryParams($queryParams)) {
             throw new InvalidArgumentException(
                 'Valor de $queryParams inválido para criar uma requisição'
             );
         }
 
-        if (false === $this->setParsedBody($parsedBody)) {
+        if (!$this->setParsedBody($parsedBody)) {
             throw new InvalidArgumentException(
                 'Valor de $parsedBody inválido para criar uma requisição'
             );
         }
 
-        if (false === $this->setProtocolVersion($protocol)) {
+        if (!$this->setProtocolVersion($protocol)) {
             throw new InvalidArgumentException(
                 'Valor de $protocol inválido para criar uma requisição'
             );

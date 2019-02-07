@@ -26,7 +26,7 @@ class Stream
      */
     public function __construct($stream, $mode = 'r')
     {
-        if (false === $this->setResource($stream, $mode)) {
+        if (!$this->setResource($stream, $mode)) {
             throw new \InvalidArgumentException(sprintf(
                 "Tipo inválido: %s. Esperado string ou resource",
                 is_object($stream) ? get_class($stream) : gettype($stream)

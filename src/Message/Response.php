@@ -108,7 +108,7 @@ class Response extends Message
     {
         parent::__construct($body, $headers);
 
-        if (false === $this->setStatus($status)) {
+        if (!$this->setStatus($status)) {
             throw new InvalidArgumentException(sprintf(
                 "Status da resposta inválido: %s. Esperado inteiro entre 100 e 600",
                 $status

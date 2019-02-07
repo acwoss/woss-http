@@ -12,34 +12,36 @@ namespace Woss\Http\Server;
 
 use Woss\Http\Message\Request;
 use Woss\Http\Message\Response;
-use Woss\Http\Message\Stream;
 
 class Resource
 {
     /**
-     * {@inheritdoc}
+     * Lista de métodos permitidos para o recurso.
+     */
+    const HTTP_METHODS = ['get', 'head', 'post', 'put', 'delete', 'connect', 'options', 'trace'];
+
+    /**
+     * Processa uma requisição chamando o método da classe conforme o método HTTP.
+     *
+     * @param Request $request Requisição de entrada.
+     * @return Response Responsa gerada a partir do processamento da requisição.
      */
     public function handle(Request $request): Response
     {
         $method = strtolower($request->getMethod());
 
         if (!method_exists($this, $method)) {
-            $body = new Stream(
-                json_encode([
-                    'message' => "O método {$method} não é permitido para o recurso " . get_class($this)
-                ])
-            );
+            $body = json_encode([
+                'message' => "O método {$method} não é permitido para o recurso " . get_class($this)
+            ]);
 
-            $methodsAllowed = get_class_methods($this);
-
-            if (($key = array_search('handle', $methodsAllowed)) !== false) {
-                unset($methodsAllowed[$key]);
-            }
+            $methodsAllowed = array_intersect(get_class_methods($this), self::HTTP_METHODS);
 
             $methodsAllowed = join(', ', array_map('strtoupper', $methodsAllowed));
 
             $response = new Response($body, 405, [
                 'Content-Type' => 'application/json',
+                'Content-Length' => strlen($body),
                 'Allow' => $methodsAllowed
             ]);
 

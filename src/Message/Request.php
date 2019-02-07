@@ -44,14 +44,14 @@ class Request extends Message
     {
         parent::__construct($body, $headers);
 
-        if (false === $this->setMethod($method)) {
+        if (!$this->setMethod($method)) {
             throw new InvalidArgumentException(sprintf(
                 "Método %s inválido.",
                 $method
             ));
         }
 
-        if (false === $this->setUri($uri)) {
+        if (!$this->setUri($uri)) {
             throw new InvalidArgumentException(sprintf(
                 "Tipo da URI inválido. Era esperado string ou Woss\\Http\\Message\\Uri, recebido %s",
                 is_object($uri) ? get_class($uri) : gettype($uri)

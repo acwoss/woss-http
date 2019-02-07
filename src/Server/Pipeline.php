@@ -30,7 +30,7 @@ class Pipeline
      */
     public function __construct($handlers)
     {
-        if (false === $this->setHandlers($handlers)) {
+        if (!$this->setHandlers($handlers)) {
             throw new InvalidArgumentException('$handlers precisa ser um iterável não vazio');
         }
     }

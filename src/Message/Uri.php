@@ -10,22 +10,8 @@ declare(strict_types=1);
 namespace Woss\Http\Message;
 
 use InvalidArgumentException;
-use Psr\Http\Message\UriInterface;
-use function explode;
-use function implode;
-use function is_numeric;
-use function is_string;
-use function ltrim;
-use function parse_url;
-use function preg_replace;
-use function preg_replace_callback;
-use function rawurlencode;
-use function sprintf;
-use function strpos;
-use function strtolower;
-use function substr;
 
-class Uri implements UriInterface
+class Uri
 {
     /**
      * @const string
@@ -81,52 +67,25 @@ class Uri implements UriInterface
     private $fragment = '';
 
     /**
-     * @var string|null
-     */
-    private $uriString;
-
-    public function __construct(string $uri = '')
-    {
-        if ('' === $uri) {
-            return;
-        }
-
-        $this->parseUri($uri);
-    }
-
-    /**
-     * Operations to perform on clone.
+     * Inicializa uma nova instância de Uri.
      *
-     * Since cloning usually is for purposes of mutation, we reset the
-     * $uriString property so it will be re-calculated.
+     * @param string $uri Uri como string.
+     * @throws InvalidArgumentException Quando $uri for inválido.
      */
-    public function __clone()
+    public function __construct($uri)
     {
-        $this->uriString = null;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function __toString(): string
-    {
-        if (null !== $this->uriString) {
-            return $this->uriString;
+        if (false === $this->parseUri($uri)) {
+            throw new InvalidArgumentException(sprintf(
+                'Valor de $uri inválido: %s',
+                $uri
+            ));
         }
-
-        $this->uriString = static::createUriString(
-            $this->scheme,
-            $this->getAuthority(),
-            $this->getPath(),
-            $this->query,
-            $this->fragment
-        );
-
-        return $this->uriString;
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna o esquema da URI.
+     *
+     * @return string Esquema da URI.
      */
     public function getScheme(): string
     {
@@ -134,7 +93,50 @@ class Uri implements UriInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define o esquema da URI.
+     *
+     * @param string $scheme Nome do esquema.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setScheme($scheme): bool
+    {
+        $scheme = strtolower($scheme);
+        $scheme = preg_replace('#:(//)?$#', '', $scheme);
+
+        if (!isset($this->allowedSchemes[$scheme])) {
+            return false;
+        }
+
+        $this->scheme = $scheme;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da URI definindo o esquema.
+     *
+     * @param string $scheme Novo esquema da URI.
+     * @return Uri|null Cópia da URI com o novo esquema, nulo em caso de falha.
+     */
+    public function withScheme($scheme): ?Uri
+    {
+        if (!is_string($scheme)) {
+            return null;
+        }
+
+        $new = clone $this;
+
+        if (!$new->setScheme($scheme)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
+     * Retorna a autoridade da URI.
+     *
+     * @return string Autoridade da URI.
      */
     public function getAuthority(): string
     {
@@ -156,7 +158,9 @@ class Uri implements UriInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Retorna as informações de usuário da URI.
+     *
+     * @return string Informações do usuário.
      */
     public function getUserInfo(): string
     {
@@ -164,7 +168,67 @@ class Uri implements UriInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define as informações de usuário da URI.
+     *
+     * @param string $user Nome do usuário.
+     * @param string|null $password Senha do usuário.
+     * @return bool Verdadeiro em caso de sucesso, falho caso contrário.
+     */
+    protected function setUserInfo($user, $password = null): bool
+    {
+        if (!is_string($user)) {
+            return false;
+        }
+
+        if (!is_null($password) && !is_string($password)) {
+            return false;
+        }
+
+        $userInfo = preg_replace_callback(
+            '/(?:[^%' . self::CHAR_UNRESERVED . self::CHAR_SUB_DELIMS . ']+|%(?![A-Fa-f0-9]{2}))/u',
+            [$this, 'urlEncodeChar'],
+            $user
+        );
+
+        if (!is_null($password)) {
+            $userInfo .= '@' . $password;
+        }
+
+        $this->userInfo = $userInfo;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da URI definindo as informações de usuário.
+     *
+     * @param string $user Nome do usuário.
+     * @param string|null $password Senha do usuário.
+     * @return Uri|null Cópia da URI com as novas informações de usuário, nulo em caso de falha.
+     */
+    public function withUserInfo($user, $password = null): ?Uri
+    {
+        if (!is_string($user)) {
+            return null;
+        }
+
+        if (!is_null($password) && !is_string($password)) {
+            return null;
+        }
+
+        $new = clone $this;
+
+        if (!$new->setUserInfo($user, $password)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
+     * Retorna o host da URI.
+     *
+     * @return string Host da URI.
      */
     public function getHost(): string
     {
@@ -172,7 +236,47 @@ class Uri implements UriInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define o host da URI.
+     *
+     * @param string $host Novo host da URI.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setHost($host): bool
+    {
+        if (!is_string($host)) {
+            return false;
+        }
+
+        $this->host = strtolower($host);
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da URI definindo o host.
+     *
+     * @param string $host Novo host da URI.
+     * @return Uri|null Cópia da URI com o novo host, nulo em caso de falha.
+     */
+    public function withHost($host): ?Uri
+    {
+        if (!is_string($host)) {
+            return null;
+        }
+
+        $new = clone $this;
+
+        if (!$new->setHost($host)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
+     * Retorna o número da porta.
+     *
+     * @return int|null Número da porta, nulo em caso de falha.
      */
     public function getPort(): ?int
     {
@@ -182,7 +286,43 @@ class Uri implements UriInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define a porta da URI.
+     *
+     * @param int|null $port Porta da URI.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setPort($port): bool
+    {
+        if (!is_null($port) && (!is_int($port) || $port < 1 || $port > 65535)) {
+            return false;
+        }
+
+        $this->port = $port;
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da URI definindo a porta.
+     *
+     * @param int|null $port Porta da URI.
+     * @return Uri|null Cópia da URI com a nova porta, nulo em caso de falha.
+     */
+    public function withPort($port): ?Uri
+    {
+        $new = clone $this;
+
+        if (!$new->setPort($port)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
+     * Retorna o caminho da URI.
+     *
+     * @return string Caminho da URI.
      */
     public function getPath(): string
     {
@@ -190,231 +330,197 @@ class Uri implements UriInterface
     }
 
     /**
-     * {@inheritdoc}
+     * Define o novo caminho da URI.
+     *
+     * @param string $path Caminho da URI.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setPath($path): bool
+    {
+        if (
+            !is_string($path)
+            || strpos($path, '?') !== false
+            || strpos($path, '#') !== false
+        ) {
+            return false;
+        }
+
+        $path = preg_replace_callback(
+            '/(?:[^' . self::CHAR_UNRESERVED . ')(:@&=\+\$,\/;%]+|%(?![A-Fa-f0-9]{2}))/u',
+            [$this, 'urlEncodeChar'],
+            $path
+        );
+
+        $this->path = '/' . ltrim($path, '/');
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da URI definindo o caminho.
+     *
+     * @param string $path Caminho da URI.
+     * @return Uri|null Cópia da URI com o novo caminho, nulo em caso de falha.
+     */
+    public function withPath($path): ?Uri
+    {
+        $new = clone $this;
+
+        if (!$new->setPath($path)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
+     * Retorna o segmento de busca da URI.
+     *
+     * @return string Segmento de busca da URI.
      */
     public function getQuery(): string
     {
         return $this->query;
     }
 
+    protected function setQuery($query): bool
+    {
+        if (
+            !is_string($query)
+            || strpos($query, '#') !== false
+        ) {
+            return false;
+        }
+
+        if ('' !== $query && strpos($query, '?') === 0) {
+            $query = substr($query, 1);
+        }
+
+        $parts = explode('&', $query);
+
+        foreach ($parts as $index => $part) {
+            [$key, $value] = $this->splitQueryValue($part);
+
+            if ($value === null) {
+                $parts[$index] = $this->filterQueryOrFragment($key);
+                continue;
+            }
+
+            $parts[$index] = sprintf(
+                '%s=%s',
+                $this->filterQueryOrFragment($key),
+                $this->filterQueryOrFragment($value)
+            );
+        }
+
+        $this->query = implode('&', $parts);
+
+        return true;
+    }
+
     /**
-     * {@inheritdoc}
+     * Retorna uma cópia de URI definindo o segmento de busca.
+     *
+     * @param string $query Segmento de busca.
+     * @return Uri|null Cópia da URI com o novo segmento de busca, nulo em caso de falha.
+     */
+    public function withQuery($query): ?Uri
+    {
+        $new = clone $this;
+
+        if (!$new->setQuery($query)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
+     * Retorna o fragmento da URI.
+     *
+     * @return string Fragmento da URI.
      */
     public function getFragment(): string
     {
         return $this->fragment;
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function withScheme($scheme): UriInterface
-    {
-        if (!is_string($scheme)) {
-            throw new InvalidArgumentException();
-        }
-
-        $scheme = $this->filterScheme($scheme);
-
-        if ($scheme === $this->scheme) {
-            return $this;
-        }
-
-        $new = clone $this;
-        $new->scheme = $scheme;
-
-        return $new;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function withUserInfo($user, $password = null): UriInterface
-    {
-        if (!is_string($user)) {
-            throw new InvalidArgumentException();
-        }
-
-        if (null !== $password && !is_string($password)) {
-            throw new InvalidArgumentException();
-        }
-
-        $info = $this->filterUserInfoPart($user);
-
-        if (null !== $password) {
-            $info .= ':' . $this->filterUserInfoPart($password);
-        }
-
-        if ($info === $this->userInfo) {
-            return $this;
-        }
-
-        $new = clone $this;
-        $new->userInfo = $info;
-
-        return $new;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function withHost($host): UriInterface
-    {
-        if (!is_string($host)) {
-            throw new InvalidArgumentException();
-        }
-
-        if ($host === $this->host) {
-            return $this;
-        }
-
-        $new = clone $this;
-        $new->host = strtolower($host);
-
-        return $new;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function withPort($port): UriInterface
-    {
-        if ($port !== null) {
-            if (!is_numeric($port) || is_float($port)) {
-                throw new InvalidArgumentException();
-            }
-
-            $port = (int)$port;
-        }
-
-        if ($port === $this->port) {
-            return $this;
-        }
-
-        if ($port !== null && ($port < 1 || $port > 65535)) {
-            throw new InvalidArgumentException();
-        }
-
-        $new = clone $this;
-        $new->port = $port;
-
-        return $new;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function withPath($path): UriInterface
-    {
-        if (!is_string($path)) {
-            throw new InvalidArgumentException();
-        }
-
-        if (strpos($path, '?') !== false) {
-            throw new InvalidArgumentException();
-        }
-
-        if (strpos($path, '#') !== false) {
-            throw new InvalidArgumentException();
-        }
-
-        $path = $this->filterPath($path);
-
-        if ($path === $this->path) {
-            return $this;
-        }
-
-        $new = clone $this;
-        $new->path = $path;
-
-        return $new;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function withQuery($query): UriInterface
-    {
-        if (!is_string($query)) {
-            throw new InvalidArgumentException();
-        }
-
-        if (strpos($query, '#') !== false) {
-            throw new InvalidArgumentException();
-        }
-
-        $query = $this->filterQuery($query);
-
-        if ($query === $this->query) {
-            return $this;
-        }
-
-        $new = clone $this;
-        $new->query = $query;
-
-        return $new;
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function withFragment($fragment): UriInterface
+    protected function setFragment($fragment): bool
     {
         if (!is_string($fragment)) {
-            throw new InvalidArgumentException();
+            return false;
         }
 
-        $fragment = $this->filterFragment($fragment);
-
-        if ($fragment === $this->fragment) {
-            return $this;
+        if ('' !== $fragment && strpos($fragment, '#') === 0) {
+            $fragment = '%23' . substr($fragment, 1);
         }
 
+        $this->fragment = $this->filterQueryOrFragment($fragment);
+
+        return true;
+    }
+
+    /**
+     * Retorna uma cópia da URI definindo o fragmento.
+     *
+     * @param string $fragment Fragmento da URI.
+     * @return Uri|null Cópia da URI com o novo fragmento, nulo em caso de falha.
+     */
+    public function withFragment($fragment): ?Uri
+    {
         $new = clone $this;
-        $new->fragment = $fragment;
+
+        if (!$new->setFragment($fragment)) {
+            return null;
+        }
 
         return $new;
     }
 
     /**
-     * @param string $uri
+     * Analisa a URI gerando as partes do objeto.
+     *
+     * @param string $uri Uri como string a ser analisada
+     * @return bool Verdadeiro em caso de sucesos, falso caso contrário.
      */
-    private function parseUri(string $uri): void
+    private function parseUri($uri): bool
     {
+        if (!is_string($uri) || empty($uri)) {
+            return false;
+        }
+
         $parts = parse_url($uri);
 
         if (false === $parts) {
-            throw new InvalidArgumentException();
+            return false;
         }
 
-        $this->scheme = isset($parts['scheme']) ? $this->filterScheme($parts['scheme']) : '';
-        $this->userInfo = isset($parts['user']) ? $this->filterUserInfoPart($parts['user']) : '';
-        $this->host = isset($parts['host']) ? strtolower($parts['host']) : '';
-        $this->port = isset($parts['port']) ? $parts['port'] : null;
-        $this->path = isset($parts['path']) ? $this->filterPath($parts['path']) : '';
-        $this->query = isset($parts['query']) ? $this->filterQuery($parts['query']) : '';
-        $this->fragment = isset($parts['fragment']) ? $this->filterFragment($parts['fragment']) : '';
-
-        if (isset($parts['pass'])) {
-            $this->userInfo .= ':' . $parts['pass'];
+        if (
+            !$this->setScheme($parts['scheme'] ?? '')
+            || !$this->setUserInfo($parts['user'] ?? '', $parts['pass'] ?? null)
+            || !$this->setHost($parts['host'] ?? '')
+            || !$this->setPort($parts['port'] ?? null)
+            || !$this->setPath($parts['path'] ?? '')
+            || !$this->setQuery($parts['query'] ?? '')
+            || !$this->setFragment($parts['fragment'] ?? '')
+        ) {
+            return false;
         }
+
+        return true;
     }
 
     /**
-     * @param string $scheme
-     * @param string $authority
-     * @param string $path
-     * @param string $query
-     * @param string $fragment
-     * @return string
+     * Retorna a URI como string.
+     *
+     * @param string $scheme Esquema da URI.
+     * @param string $authority Autoridade da URI.
+     * @param string $path Caminho da URI.
+     * @param string $query Segmento de busca da URI.
+     * @param string $fragment Fragmento da URI.
+     * @return string Representação da URI como string.
      */
-    private static function createUriString(
-        string $scheme,
-        string $authority,
-        string $path,
-        string $query,
-        string $fragment
-    ): string
+    private static function createUriString($scheme, $authority, $path, $query, $fragment): string
     {
         $uri = '';
 
@@ -444,12 +550,14 @@ class Uri implements UriInterface
     }
 
     /**
-     * @param string $scheme
-     * @param string $host
-     * @param int|null $port
-     * @return bool
+     * Verifica se a porta especificada é a porta padrão para o esquema.
+     *
+     * @param string $scheme Esquema da URI.
+     * @param string $host Host da URI.
+     * @param int|null $port Porta utilizada.
+     * @return bool Verdadeiro se a porta não for padrão, falso caso contrário.
      */
-    private function isNonStandardPort(string $scheme, string $host, ?int $port): bool
+    private function isNonStandardPort($scheme, $host, $port): bool
     {
         if ('' === $scheme) {
             return '' === $host || null !== $port;
@@ -463,96 +571,12 @@ class Uri implements UriInterface
     }
 
     /**
-     * @param string $scheme Scheme name.
-     * @return string Filtered scheme.
+     * Separa um segmento de busca em nome e valor.
+     *
+     * @param string $value Valor do segmento de busca.
+     * @return array Array com dois valores, nome e valor.
      */
-    private function filterScheme(string $scheme): string
-    {
-        $scheme = strtolower($scheme);
-        $scheme = preg_replace('#:(//)?$#', '', $scheme);
-
-        if ('' === $scheme) {
-            return '';
-        }
-
-        if (!isset($this->allowedSchemes[$scheme])) {
-            throw new InvalidArgumentException();
-        }
-
-        return $scheme;
-    }
-
-    /**
-     * @param string $part
-     * @return string
-     */
-    private function filterUserInfoPart(string $part): string
-    {
-        return preg_replace_callback(
-            '/(?:[^%' . self::CHAR_UNRESERVED . self::CHAR_SUB_DELIMS . ']+|%(?![A-Fa-f0-9]{2}))/u',
-            [$this, 'urlEncodeChar'],
-            $part
-        );
-    }
-
-    /**
-     * @param string $path
-     * @return string
-     */
-    private function filterPath(string $path): string
-    {
-        $path = preg_replace_callback(
-            '/(?:[^' . self::CHAR_UNRESERVED . ')(:@&=\+\$,\/;%]+|%(?![A-Fa-f0-9]{2}))/u',
-            [$this, 'urlEncodeChar'],
-            $path
-        );
-
-        if ('' === $path) {
-            return $path;
-        }
-
-        if ($path[0] !== '/') {
-            return $path;
-        }
-
-        return '/' . ltrim($path, '/');
-    }
-
-    /**
-     * @param string $query
-     * @return string
-     */
-    private function filterQuery(string $query): string
-    {
-        if ('' !== $query && strpos($query, '?') === 0) {
-            $query = substr($query, 1);
-        }
-
-        $parts = explode('&', $query);
-
-        foreach ($parts as $index => $part) {
-            [$key, $value] = $this->splitQueryValue($part);
-
-            if ($value === null) {
-                $parts[$index] = $this->filterQueryOrFragment($key);
-                continue;
-            }
-
-            $parts[$index] = sprintf(
-                '%s=%s',
-                $this->filterQueryOrFragment($key),
-                $this->filterQueryOrFragment($value)
-            );
-        }
-
-        return implode('&', $parts);
-    }
-
-    /**
-     * @param string $value
-     * @return array A value with exactly two elements, key and value
-     */
-    private function splitQueryValue(string $value): array
+    private function splitQueryValue($value): array
     {
         $data = explode('=', $value, 2);
 
@@ -564,23 +588,12 @@ class Uri implements UriInterface
     }
 
     /**
-     * @param string $fragment
-     * @return string
+     * Filtra um valor que compõe o segmento de busca ou fragmento.
+     *
+     * @param string $value String a ser filtrada.
+     * @return string String após aplicar o filtro.
      */
-    private function filterFragment(string $fragment): string
-    {
-        if ('' !== $fragment && strpos($fragment, '#') === 0) {
-            $fragment = '%23' . substr($fragment, 1);
-        }
-
-        return $this->filterQueryOrFragment($fragment);
-    }
-
-    /**
-     * @param string $value
-     * @return string
-     */
-    private function filterQueryOrFragment(string $value): string
+    private function filterQueryOrFragment($value): string
     {
         return preg_replace_callback(
             '/(?:[^' . self::CHAR_UNRESERVED . self::CHAR_SUB_DELIMS . '%:@\/\?]+|%(?![A-Fa-f0-9]{2}))/u',
@@ -590,11 +603,29 @@ class Uri implements UriInterface
     }
 
     /**
-     * @param array $matches
-     * @return string
+     * Codifica os caracteres a partir de um array de filtro.
+     *
+     * @param array $matches Array gerado pelo filtro.
+     * @return string String codificada.
      */
-    private function urlEncodeChar(array $matches): string
+    private function urlEncodeChar($matches): string
     {
         return rawurlencode($matches[0]);
+    }
+
+    /**
+     * Retorna a representação como string da URI.
+     *
+     * @return string Representação da URI.
+     */
+    public function __toString(): string
+    {
+        return static::createUriString(
+            $this->scheme,
+            $this->getAuthority(),
+            $this->getPath(),
+            $this->query,
+            $this->fragment
+        );
     }
 }
