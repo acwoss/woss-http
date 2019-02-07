@@ -7,7 +7,7 @@
  */
 declare(strict_types=1);
 
-namespace Woss\Http\Test;
+namespace Woss\Http\Test\Message;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;

@@ -92,7 +92,7 @@ abstract class Message
             return false;
         }
 
-        if (!preg_match('\d+\.\d+', $version)) {
+        if (!preg_match('/\d+\.\d+/', $version)) {
             return false;
         }
 

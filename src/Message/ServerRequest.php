@@ -17,32 +17,32 @@ class ServerRequest extends Request
     /**
      * @var array
      */
-    private $serverParams;
+    private $serverParams = [];
 
     /**
      * @var array
      */
-    private $cookieParams;
+    private $cookieParams = [];
 
     /**
      * @var array
      */
-    private $queryParams;
+    private $queryParams = [];
 
     /**
      * @var array
      */
-    private $uploadedFiles;
+    private $uploadedFiles = [];
 
     /**
      * @var null|array|object
      */
-    private $parsedBody;
+    private $parsedBody = null;
 
     /**
      * @var array
      */
-    private $attributes;
+    private $attributes = [];
 
     /**
      * Inicializa uma nova instância de ServerRequest.
@@ -68,7 +68,7 @@ class ServerRequest extends Request
     public function __construct(
         $serverParams = [],
         $uploadedFiles = [],
-        $uri = '',
+        $uri = '/',
         $method = 'GET',
         $body = 'php://input',
         $headers = [],
@@ -318,6 +318,23 @@ class ServerRequest extends Request
     {
         if (!is_array($uploadedFiles)) {
             return false;
+        }
+
+        foreach ($uploadedFiles as $name => $uploadedFile) {
+
+            if (!is_array($uploadedFile)) {
+                return false;
+            }
+
+            if (
+                !key_exists('name', $uploadedFile)
+                || !key_exists('type', $uploadedFile)
+                || !key_exists('size', $uploadedFile)
+                || !key_exists('tmp_name', $uploadedFile)
+                || !key_exists('error', $uploadedFile)
+            ) {
+                return false;
+            }
         }
 
         $this->uploadedFiles = $uploadedFiles;

@@ -40,7 +40,7 @@ class Request extends Message
      * @throws InvalidArgumentException Quando o método da requisição é inválido.
      *
      */
-    public function __construct($uri = '', $method = 'GET', $body = 'php://temp', $headers = [])
+    public function __construct($uri = '/', $method = 'GET', $body = 'php://temp', $headers = [])
     {
         parent::__construct($body, $headers);
 
@@ -51,7 +51,7 @@ class Request extends Message
             ));
         }
 
-        if ($this->setUri($uri)) {
+        if (!$this->setUri($uri)) {
             throw new InvalidArgumentException(sprintf(
                 "Tipo da URI inválido. Era esperado string ou Woss\\Http\\Message\\Uri, recebido %s",
                 is_object($uri) ? get_class($uri) : gettype($uri)
