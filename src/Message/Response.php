@@ -138,7 +138,7 @@ class Response extends Message
         }
 
         $this->reasonPhrase = $reasonPhrase;
-        $this->statusCode = $code;
+        $this->statusCode = (int) $code;
 
         return true;
     }
