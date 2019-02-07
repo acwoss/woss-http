@@ -83,6 +83,39 @@ class Uri
     }
 
     /**
+     * Analisa a URI gerando as partes do objeto.
+     *
+     * @param string $uri Uri como string a ser analisada
+     * @return bool Verdadeiro em caso de sucesos, falso caso contrário.
+     */
+    private function parseUri($uri): bool
+    {
+        if (!is_string($uri) || empty($uri)) {
+            return false;
+        }
+
+        $parts = parse_url($uri);
+
+        if (false === $parts) {
+            return false;
+        }
+
+        if (
+            !$this->setScheme($parts['scheme'] ?? '')
+            || !$this->setUserInfo($parts['user'] ?? '', $parts['pass'] ?? null)
+            || !$this->setHost($parts['host'] ?? '')
+            || !$this->setPort($parts['port'] ?? null)
+            || !$this->setPath($parts['path'] ?? '')
+            || !$this->setQuery($parts['query'] ?? '')
+            || !$this->setFragment($parts['fragment'] ?? '')
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Retorna o esquema da URI.
      *
      * @return string Esquema da URI.
@@ -103,7 +136,7 @@ class Uri
         $scheme = strtolower($scheme);
         $scheme = preg_replace('#:(//)?$#', '', $scheme);
 
-        if (!isset($this->allowedSchemes[$scheme])) {
+        if (!empty($scheme) && !isset($this->allowedSchemes[$scheme])) {
             return false;
         }
 
@@ -131,30 +164,6 @@ class Uri
         }
 
         return $new;
-    }
-
-    /**
-     * Retorna a autoridade da URI.
-     *
-     * @return string Autoridade da URI.
-     */
-    public function getAuthority(): string
-    {
-        if ('' === $this->host) {
-            return '';
-        }
-
-        $authority = $this->host;
-
-        if ('' !== $this->userInfo) {
-            $authority = $this->userInfo . '@' . $authority;
-        }
-
-        if ($this->isNonStandardPort($this->scheme, $this->host, $this->port)) {
-            $authority .= ':' . $this->port;
-        }
-
-        return $authority;
     }
 
     /**
@@ -191,7 +200,11 @@ class Uri
         );
 
         if (!is_null($password)) {
-            $userInfo .= '@' . $password;
+            $userInfo .= ':' . preg_replace_callback(
+                    '/(?:[^%' . self::CHAR_UNRESERVED . self::CHAR_SUB_DELIMS . ']+|%(?![A-Fa-f0-9]{2}))/u',
+                    [$this, 'urlEncodeChar'],
+                    $password
+                );;
         }
 
         $this->userInfo = $userInfo;
@@ -303,6 +316,27 @@ class Uri
     }
 
     /**
+     * Verifica se a porta especificada é a porta padrão para o esquema.
+     *
+     * @param string $scheme Esquema da URI.
+     * @param string $host Host da URI.
+     * @param int|null $port Porta utilizada.
+     * @return bool Verdadeiro se a porta não for padrão, falso caso contrário.
+     */
+    private function isNonStandardPort($scheme, $host, $port): bool
+    {
+        if ('' === $scheme) {
+            return '' === $host || null !== $port;
+        }
+
+        if ('' === $host || null === $port) {
+            return false;
+        }
+
+        return !isset($this->allowedSchemes[$scheme]) || $port !== $this->allowedSchemes[$scheme];
+    }
+
+    /**
      * Retorna uma cópia da URI definindo a porta.
      *
      * @param int|null $port Porta da URI.
@@ -317,43 +351,6 @@ class Uri
         }
 
         return $new;
-    }
-
-    /**
-     * Retorna o caminho da URI.
-     *
-     * @return string Caminho da URI.
-     */
-    public function getPath(): string
-    {
-        return $this->path;
-    }
-
-    /**
-     * Define o novo caminho da URI.
-     *
-     * @param string $path Caminho da URI.
-     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
-     */
-    protected function setPath($path): bool
-    {
-        if (
-            !is_string($path)
-            || strpos($path, '?') !== false
-            || strpos($path, '#') !== false
-        ) {
-            return false;
-        }
-
-        $path = preg_replace_callback(
-            '/(?:[^' . self::CHAR_UNRESERVED . ')(:@&=\+\$,\/;%]+|%(?![A-Fa-f0-9]{2}))/u',
-            [$this, 'urlEncodeChar'],
-            $path
-        );
-
-        $this->path = '/' . ltrim($path, '/');
-
-        return true;
     }
 
     /**
@@ -478,36 +475,19 @@ class Uri
     }
 
     /**
-     * Analisa a URI gerando as partes do objeto.
+     * Retorna a representação como string da URI.
      *
-     * @param string $uri Uri como string a ser analisada
-     * @return bool Verdadeiro em caso de sucesos, falso caso contrário.
+     * @return string Representação da URI.
      */
-    private function parseUri($uri): bool
+    public function __toString(): string
     {
-        if (!is_string($uri) || empty($uri)) {
-            return false;
-        }
-
-        $parts = parse_url($uri);
-
-        if (false === $parts) {
-            return false;
-        }
-
-        if (
-            !$this->setScheme($parts['scheme'] ?? '')
-            || !$this->setUserInfo($parts['user'] ?? '', $parts['pass'] ?? null)
-            || !$this->setHost($parts['host'] ?? '')
-            || !$this->setPort($parts['port'] ?? null)
-            || !$this->setPath($parts['path'] ?? '')
-            || !$this->setQuery($parts['query'] ?? '')
-            || !$this->setFragment($parts['fragment'] ?? '')
-        ) {
-            return false;
-        }
-
-        return true;
+        return static::createUriString(
+            $this->scheme,
+            $this->getAuthority(),
+            $this->getPath(),
+            $this->query,
+            $this->fragment
+        );
     }
 
     /**
@@ -550,24 +530,64 @@ class Uri
     }
 
     /**
-     * Verifica se a porta especificada é a porta padrão para o esquema.
+     * Retorna a autoridade da URI.
      *
-     * @param string $scheme Esquema da URI.
-     * @param string $host Host da URI.
-     * @param int|null $port Porta utilizada.
-     * @return bool Verdadeiro se a porta não for padrão, falso caso contrário.
+     * @return string Autoridade da URI.
      */
-    private function isNonStandardPort($scheme, $host, $port): bool
+    public function getAuthority(): string
     {
-        if ('' === $scheme) {
-            return '' === $host || null !== $port;
+        if ('' === $this->host) {
+            return '';
         }
 
-        if ('' === $host || null === $port) {
+        $authority = $this->host;
+
+        if ('' !== $this->userInfo) {
+            $authority = $this->userInfo . '@' . $authority;
+        }
+
+        if ($this->isNonStandardPort($this->scheme, $this->host, $this->port)) {
+            $authority .= ':' . $this->port;
+        }
+
+        return $authority;
+    }
+
+    /**
+     * Retorna o caminho da URI.
+     *
+     * @return string Caminho da URI.
+     */
+    public function getPath(): string
+    {
+        return $this->path;
+    }
+
+    /**
+     * Define o novo caminho da URI.
+     *
+     * @param string $path Caminho da URI.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setPath($path): bool
+    {
+        if (
+            !is_string($path)
+            || strpos($path, '?') !== false
+            || strpos($path, '#') !== false
+        ) {
             return false;
         }
 
-        return !isset($this->allowedSchemes[$scheme]) || $port !== $this->allowedSchemes[$scheme];
+        $path = preg_replace_callback(
+            '/(?:[^' . self::CHAR_UNRESERVED . ')(:@&=\+\$,\/;%]+|%(?![A-Fa-f0-9]{2}))/u',
+            [$this, 'urlEncodeChar'],
+            $path
+        );
+
+        $this->path = !empty($path) ? '/' . ltrim($path, '/') : '';
+
+        return true;
     }
 
     /**
@@ -611,21 +631,5 @@ class Uri
     private function urlEncodeChar($matches): string
     {
         return rawurlencode($matches[0]);
-    }
-
-    /**
-     * Retorna a representação como string da URI.
-     *
-     * @return string Representação da URI.
-     */
-    public function __toString(): string
-    {
-        return static::createUriString(
-            $this->scheme,
-            $this->getAuthority(),
-            $this->getPath(),
-            $this->query,
-            $this->fragment
-        );
     }
 }

@@ -35,6 +35,32 @@ class Stream
     }
 
     /**
+     * Define o recurso da Stream.
+     *
+     * @param string|resource $stream String ou recurso a ser definido na Stream.
+     * @param string $mode Modo que será aberto a Stream.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setResource($stream, $mode = 'r'): bool
+    {
+        if (!is_string($stream) && !is_resource($stream) && !is_string($mode)) {
+            return false;
+        }
+
+        if (is_string($stream)) {
+            $stream = fopen($stream, $mode);
+
+            if (false === $stream) {
+                return false;
+            }
+        }
+
+        $this->resource = $stream;
+
+        return true;
+    }
+
+    /**
      * Fecha a Stream.
      *
      * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
@@ -120,51 +146,24 @@ class Stream
     }
 
     /**
-     * Verifica se a Stream pode ser consultada.
+     * Escreve o conteúdo no recurso na posição atual do ponteiro.
      *
-     * @return bool Verdadeiro se a Stream puder ser consultada, falso caso contrário.
+     * @param string $string Conteúdo a ser escrito na Stream.
+     * @return int|null Quantidade de bytes escrito, nulo em caso de falha.
      */
-    public function isSeekable(): bool
+    public function write($string): ?int
     {
-        if (!is_resource($this->resource)) {
-            return false;
+        if (!is_string($string) || !$this->isWritable()) {
+            return null;
         }
 
-        $meta = stream_get_meta_data($this->resource);
+        $result = fwrite($this->resource, $string);
 
-        return $meta['seekable'];
-    }
-
-    /**
-     * Procura (seeks) em um ponteiro de arquivo.
-     *
-     * @param int $offset Posição até onde deseja movimentar o ponteiro.
-     * @param int $whence Configuração sobre a movimentação do ponteiro.
-     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
-     */
-    public function seek($offset, $whence = SEEK_SET): bool
-    {
-        if (!is_int($offset) || !is_int($whence) || !$this->isSeekable()) {
-            return false;
+        if (false === $result) {
+            return null;
         }
 
-        $result = fseek($this->resource, $offset, $whence);
-
-        if (0 !== $result) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Retorna o ponteiro do arquivo para o início.
-     *
-     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
-     */
-    public function rewind(): bool
-    {
-        return $this->seek(0);
+        return $result;
     }
 
     /**
@@ -191,18 +190,18 @@ class Stream
     }
 
     /**
-     * Escreve o conteúdo no recurso na posição atual do ponteiro.
+     * Leitura binary-safe de arquivo.
      *
-     * @param string $string Conteúdo a ser escrito na Stream.
-     * @return int|null Quantidade de bytes escrito, nulo em caso de falha.
+     * @param int $length Número de bytes a serem lidos.
+     * @return string|null Conteúdo lido, nulo em caso de falha.
      */
-    public function write($string): ?int
+    public function read($length): ?string
     {
-        if (!is_string($string) || !$this->isWritable()) {
+        if (!is_int($length) || !$this->isReadable()) {
             return null;
         }
 
-        $result = fwrite($this->resource, $string);
+        $result = fread($this->resource, $length);
 
         if (false === $result) {
             return null;
@@ -226,47 +225,6 @@ class Stream
         $mode = $meta['mode'];
 
         return (false !== strstr($mode, 'r') || false !== strstr($mode, '+'));
-    }
-
-    /**
-     * Leitura binary-safe de arquivo.
-     *
-     * @param int $length Número de bytes a serem lidos.
-     * @return string|null Conteúdo lido, nulo em caso de falha.
-     */
-    public function read($length): ?string
-    {
-        if (!is_int($length) || !$this->isReadable()) {
-            return null;
-        }
-
-        $result = fread($this->resource, $length);
-
-        if (false === $result) {
-            return null;
-        }
-
-        return $result;
-    }
-
-    /**
-     * Retorna o conteúdo da Stream como string.
-     *
-     * @return string|null Conteúdo da Stream.
-     */
-    public function getContents(): ?string
-    {
-        if (!$this->isReadable()) {
-            return null;
-        }
-
-        $result = stream_get_contents($this->resource);
-
-        if (false === $result) {
-            return null;
-        }
-
-        return $result;
     }
 
     /**
@@ -295,32 +253,6 @@ class Stream
     }
 
     /**
-     * Define o recurso da Stream.
-     *
-     * @param string|resource $stream String ou recurso a ser definido na Stream.
-     * @param string $mode Modo que será aberto a Stream.
-     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
-     */
-    protected function setResource($stream, $mode = 'r'): bool
-    {
-        if (!is_string($stream) || !is_resource($stream) || !is_string($mode)) {
-            return false;
-        }
-
-        if (is_string($stream)) {
-            $stream = fopen($stream, $mode);
-
-            if (false === $stream) {
-                return false;
-            }
-        }
-
-        $this->resource = $stream;
-
-        return true;
-    }
-
-    /**
      * Retorna a representação em string da Stream.
      *
      * @return string|null Representação da Stream, nulo em caso de falha.
@@ -336,5 +268,73 @@ class Stream
         }
 
         return $this->getContents();
+    }
+
+    /**
+     * Verifica se a Stream pode ser consultada.
+     *
+     * @return bool Verdadeiro se a Stream puder ser consultada, falso caso contrário.
+     */
+    public function isSeekable(): bool
+    {
+        if (!is_resource($this->resource)) {
+            return false;
+        }
+
+        $meta = stream_get_meta_data($this->resource);
+
+        return $meta['seekable'];
+    }
+
+    /**
+     * Retorna o ponteiro do arquivo para o início.
+     *
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    public function rewind(): bool
+    {
+        return $this->seek(0);
+    }
+
+    /**
+     * Procura (seeks) em um ponteiro de arquivo.
+     *
+     * @param int $offset Posição até onde deseja movimentar o ponteiro.
+     * @param int $whence Configuração sobre a movimentação do ponteiro.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    public function seek($offset, $whence = SEEK_SET): bool
+    {
+        if (!is_int($offset) || !is_int($whence) || !$this->isSeekable()) {
+            return false;
+        }
+
+        $result = fseek($this->resource, $offset, $whence);
+
+        if (0 !== $result) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Retorna o conteúdo da Stream como string.
+     *
+     * @return string|null Conteúdo da Stream.
+     */
+    public function getContents(): ?string
+    {
+        if (!$this->isReadable()) {
+            return null;
+        }
+
+        $result = stream_get_contents($this->resource);
+
+        if (false === $result) {
+            return null;
+        }
+
+        return $result;
     }
 }

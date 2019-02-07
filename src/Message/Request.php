@@ -51,7 +51,7 @@ class Request extends Message
             ));
         }
 
-        if (!$this->setUri($uri)) {
+        if ($this->setUri($uri)) {
             throw new InvalidArgumentException(sprintf(
                 "Tipo da URI inválido. Era esperado string ou Woss\\Http\\Message\\Uri, recebido %s",
                 is_object($uri) ? get_class($uri) : gettype($uri)
@@ -61,6 +61,19 @@ class Request extends Message
         if (!$this->hasHeader('Host') && $this->uri->getHost() !== '') {
             $this->setHeader('Host', $this->getHostFromUri());
         }
+    }
+
+    /**
+     * Retorna o valor de Host a partir da URI da requisição.
+     *
+     * @return string Host a partir da URI da requisição.
+     */
+    protected function getHostFromUri(): string
+    {
+        $host = $this->uri->getHost();
+        $host .= $this->uri->getPort() ? ':' . $this->uri->getPort() : '';
+
+        return $host;
     }
 
     /**
@@ -88,23 +101,6 @@ class Request extends Message
     }
 
     /**
-     * Retorna uma cópia da requisição definindo o novo alvo.
-     *
-     * @param string $requestTarget Novo alvo da requisição.
-     * @return Request|null Cópia da requisição com o novo alvo, nulo em caso de falha.
-     */
-    public function withRequestTarget($requestTarget): ?Request
-    {
-        $new = clone $this;
-
-        if (!$new->setRequestTarget($requestTarget)) {
-            return null;
-        }
-
-        return $new;
-    }
-
-    /**
      * Define o novo alvo da requisição.
      *
      * @param string $requestTarget Novo alvo da requisição.
@@ -122,6 +118,23 @@ class Request extends Message
     }
 
     /**
+     * Retorna uma cópia da requisição definindo o novo alvo.
+     *
+     * @param string $requestTarget Novo alvo da requisição.
+     * @return Request|null Cópia da requisição com o novo alvo, nulo em caso de falha.
+     */
+    public function withRequestTarget($requestTarget): ?Request
+    {
+        $new = clone $this;
+
+        if (!$new->setRequestTarget($requestTarget)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
      * Retorna o método da requisição.
      *
      * @return string Método da requisição.
@@ -129,23 +142,6 @@ class Request extends Message
     public function getMethod(): string
     {
         return $this->method;
-    }
-
-    /**
-     * Retorna uma cópia da requisição deinindo o novo método.
-     *
-     * @param string $method Novo método da requisição.
-     * @return Request|null Cópia da requisição com o novo método.
-     */
-    public function withMethod($method): ?Request
-    {
-        $new = clone $this;
-
-        if (!$new->setMethod($method)) {
-            return null;
-        }
-
-        return $new;
     }
 
     /**
@@ -166,6 +162,23 @@ class Request extends Message
     }
 
     /**
+     * Retorna uma cópia da requisição deinindo o novo método.
+     *
+     * @param string $method Novo método da requisição.
+     * @return Request|null Cópia da requisição com o novo método.
+     */
+    public function withMethod($method): ?Request
+    {
+        $new = clone $this;
+
+        if (!$new->setMethod($method)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
      * Retorna a URI da requisição.
      *
      * @return Uri URI da requisição.
@@ -173,6 +186,27 @@ class Request extends Message
     public function getUri(): Uri
     {
         return $this->uri;
+    }
+
+    /**
+     * Define a nova URI da requisição.
+     *
+     * @param string|Uri $uri Nova URI da requisição.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setUri($uri): bool
+    {
+        if (!is_string($uri) && !($uri instanceof Uri)) {
+            return false;
+        }
+
+        if (is_string($uri)) {
+            $uri = new Uri($uri);
+        }
+
+        $this->uri = $uri;
+
+        return true;
     }
 
     /**
@@ -206,40 +240,6 @@ class Request extends Message
         $new = $new->withHeader('Host', $host);
 
         return $new;
-    }
-
-    /**
-     * Define a nova URI da requisição.
-     *
-     * @param string|Uri $uri Nova URI da requisição.
-     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
-     */
-    protected function setUri($uri): bool
-    {
-        if (!is_string($uri) && !($uri instanceof Uri)) {
-            return false;
-        }
-
-        if (is_string($uri)) {
-            $uri = new Uri($uri);
-        }
-
-        $this->uri = $uri;
-
-        return true;
-    }
-
-    /**
-     * Retorna o valor de Host a partir da URI da requisição.
-     *
-     * @return string Host a partir da URI da requisição.
-     */
-    protected function getHostFromUri(): string
-    {
-        $host = $this->uri->getHost();
-        $host .= $this->uri->getPort() ? ':' . $this->uri->getPort() : '';
-
-        return $host;
     }
 
 

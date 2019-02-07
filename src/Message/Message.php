@@ -64,6 +64,23 @@ abstract class Message
     }
 
     /**
+     * Retorna uma cópia da mensagem com a nova versão do protocolo definida.
+     *
+     * @param string $version Versão do protocolo HTTP.
+     * @return Message|null Cópia da mensagem com a nova versão do protocolo, nulo em caso de falha.
+     */
+    public function withProtocolVersion($version): ?Message
+    {
+        $new = clone $this;
+
+        if (!$new->setProtocolVersion($version)) {
+            return null;
+        }
+
+        return $new;
+    }
+
+    /**
      * Define a versão do protocolo HTTP.
      *
      * @param string $version Versão do protocolo HTTP.
@@ -82,23 +99,6 @@ abstract class Message
         $this->protocol = $version;
 
         return true;
-    }
-
-    /**
-     * Retorna uma cópia da mensagem com a nova versão do protocolo definida.
-     *
-     * @param string $version Versão do protocolo HTTP.
-     * @return Message|null Cópia da mensagem com a nova versão do protocolo, nulo em caso de falha.
-     */
-    public function withProtocolVersion($version): ?Message
-    {
-        $new = clone $this;
-
-        if (!$new->setProtocolVersion($version)) {
-            return null;
-        }
-
-        return $new;
     }
 
     /**
@@ -135,40 +135,6 @@ abstract class Message
     }
 
     /**
-     * Define um cabeçalho da mensagem.
-     *
-     * @param string $name Nome do cabeçalho.
-     * @param mixed $value Valor do cabeçalho.
-     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
-     */
-    protected function setHeader($name, $value): bool
-    {
-        $name = $this->normalizeHeaderName($name);
-
-        if (is_null($name)) {
-            return false;
-        }
-
-        if (!is_array($value)) {
-            $value = [$value];
-        }
-
-        foreach ($value as $v) {
-            if (
-                (!is_string($v) && !is_numeric($v)) ||
-                preg_match("#(?:(?:(?<!\r)\n)|(?:\r(?!\n))|(?:\r\n(?![ \t])))#", $v) ||
-                preg_match('/[^\x09\x0a\x0d\x20-\x7E\x80-\xFE]/', $v)
-            ) {
-                return false;
-            }
-        }
-
-        $this->headers[$name] = $value;
-
-        return true;
-    }
-
-    /**
      * Retorna os valores do cabeçalho separados por vírgula.
      *
      * @param string $name Nome do cabeçalho.
@@ -198,6 +164,21 @@ abstract class Message
         }
 
         return array_key_exists($name, $this->headers);
+    }
+
+    /**
+     * Retorna o nome do cabeçalho normalizado.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @return string|null Nome normalizado do cabeçalho, nulo em caso de falha.
+     */
+    private function normalizeHeaderName($name): ?string
+    {
+        if (!is_string($name) || !preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $name)) {
+            return null;
+        }
+
+        return implode('-', array_map('ucfirst', explode('-', $name)));
     }
 
     /**
@@ -253,6 +234,40 @@ abstract class Message
         }
 
         return $new;
+    }
+
+    /**
+     * Define um cabeçalho da mensagem.
+     *
+     * @param string $name Nome do cabeçalho.
+     * @param mixed $value Valor do cabeçalho.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setHeader($name, $value): bool
+    {
+        $name = $this->normalizeHeaderName($name);
+
+        if (is_null($name)) {
+            return false;
+        }
+
+        if (!is_array($value)) {
+            $value = [$value];
+        }
+
+        foreach ($value as $v) {
+            if (
+                (!is_string($v) && !is_numeric($v)) ||
+                preg_match("#(?:(?:(?<!\r)\n)|(?:\r(?!\n))|(?:\r\n(?![ \t])))#", $v) ||
+                preg_match('/[^\x09\x0a\x0d\x20-\x7E\x80-\xFE]/', $v)
+            ) {
+                return false;
+            }
+        }
+
+        $this->headers[$name] = $value;
+
+        return true;
     }
 
     /**
@@ -320,20 +335,5 @@ abstract class Message
         }
 
         return $new;
-    }
-
-    /**
-     * Retorna o nome do cabeçalho normalizado.
-     *
-     * @param string $name Nome do cabeçalho.
-     * @return string|null Nome normalizado do cabeçalho, nulo em caso de falha.
-     */
-    private function normalizeHeaderName($name): ?string
-    {
-        if (!is_string($name) || !preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $name)) {
-            return null;
-        }
-
-        return implode('-', array_map('ucfirst', explode('-', $name)));
     }
 }

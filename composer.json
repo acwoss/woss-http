@@ -18,6 +18,11 @@
       "Woss\\Http\\": "src/"
     }
   },
+  "autoload-dev":  {
+    "psr-4": {
+      "Woss\\Http\\Test\\": "test/"
+    }
+  },
   "require-dev": {
     "phpunit/phpunit": "^8"
   },

@@ -117,6 +117,33 @@ class Response extends Message
     }
 
     /**
+     * Define um novo estado para a resposta.
+     *
+     * @param int $code Novo código do estado da resposta.
+     * @param string $reasonPhrase Nova mensagem do estado da resposta.
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
+     */
+    protected function setStatus($code, $reasonPhrase = ''): bool
+    {
+        if (!is_numeric($code) || is_float($code) || $code < 100 || $code > 599) {
+            return false;
+        }
+
+        if (!is_string($reasonPhrase)) {
+            return false;
+        }
+
+        if ($reasonPhrase === '' && isset($this->phrases[$code])) {
+            $reasonPhrase = $this->phrases[$code];
+        }
+
+        $this->reasonPhrase = $reasonPhrase;
+        $this->statusCode = $code;
+
+        return true;
+    }
+
+    /**
      * Retorna o código do estado da resposta.
      *
      * @return int Código do estado da resposta.
@@ -152,32 +179,5 @@ class Response extends Message
     public function getReasonPhrase(): string
     {
         return $this->reasonPhrase;
-    }
-
-    /**
-     * Define um novo estado para a resposta.
-     *
-     * @param int $code Novo código do estado da resposta.
-     * @param string $reasonPhrase Nova mensagem do estado da resposta.
-     * @return bool Verdadeiro em caso de sucesso, falso caso contrário
-     */
-    protected function setStatus($code, $reasonPhrase = ''): bool
-    {
-        if (!is_numeric($code) || is_float($code) || $code < 100 || $code > 599) {
-            return false;
-        }
-
-        if (!is_string($reasonPhrase)) {
-            return false;
-        }
-
-        if ($reasonPhrase === '' && isset($this->phrases[$code])) {
-            $reasonPhrase = $this->phrases[$code];
-        }
-
-        $this->reasonPhrase = $reasonPhrase;
-        $this->statusCode = $code;
-
-        return true;
     }
 }

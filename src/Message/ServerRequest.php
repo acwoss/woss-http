@@ -119,6 +119,54 @@ class ServerRequest extends Request
     }
 
     /**
+     * Cria uma requisição a partir das variáveis super globais no servidor.
+     *
+     * @return ServerRequest Requisição gerada a partir das variáveis super globais.
+     */
+    public static function fromGlobals(): ServerRequest
+    {
+        $getAllHeaders = function_exists('getallheaders') ? 'getallheaders' : function ($server) {
+            $headers = [];
+            foreach ($server as $name => $value) {
+                if (substr($name, 0, 5) == 'HTTP_') {
+                    $name = str_replace(
+                        ' ',
+                        '-',
+                        ucwords(
+                            strtolower(
+                                str_replace(
+                                    '_',
+                                    ' ',
+                                    substr($name, 5)
+                                )
+                            )
+                        )
+                    );
+
+                    $headers[$name] = $value;
+                }
+            }
+
+            return $headers;
+        };
+
+        $headers = call_user_func($getAllHeaders, $server ?? $_SERVER);
+
+        return new static(
+            $_SERVER,
+            $_FILES,
+            $_SERVER['REQUEST_URI'],
+            $_SERVER['REQUEST_METHOD'],
+            'php://input',
+            $headers,
+            $_COOKIE,
+            $_GET,
+            $_POST,
+            $_SERVER['SERVER_PROTOCOL']
+        );
+    }
+
+    /**
      * Retorna a lista de parâmetros do servidor.
      *
      * @return array Lista de parâmetros do servidor.
@@ -376,20 +424,6 @@ class ServerRequest extends Request
     }
 
     /**
-     * Define o atributo da requisição.
-     *
-     * @param mixed $name Nome do atributo da requisição.
-     * @param mixed $value Valor do atributo da requisição.
-     * @return bool Verdadeiro em caso de sucesso, false caso contrário.
-     */
-    protected function setAttribute($name, $value): bool
-    {
-        $this->attributes[$name] = $value;
-
-        return true;
-    }
-
-    /**
      * Retorna uma cópia da requisição definindo o novo atributo.
      *
      * @param mixed $name Nome do atributo da requisição.
@@ -408,6 +442,20 @@ class ServerRequest extends Request
     }
 
     /**
+     * Define o atributo da requisição.
+     *
+     * @param mixed $name Nome do atributo da requisição.
+     * @param mixed $value Valor do atributo da requisição.
+     * @return bool Verdadeiro em caso de sucesso, false caso contrário.
+     */
+    protected function setAttribute($name, $value): bool
+    {
+        $this->attributes[$name] = $value;
+
+        return true;
+    }
+
+    /**
      * Retorna uma cópia da requisição sem o atributo especificado.
      *
      * @param mixed $name Nome do atributo da requisição.
@@ -422,53 +470,5 @@ class ServerRequest extends Request
         }
 
         return $new;
-    }
-
-    /**
-     * Cria uma requisição a partir das variáveis super globais no servidor.
-     *
-     * @return ServerRequest Requisição gerada a partir das variáveis super globais.
-     */
-    public static function fromGlobals(): ServerRequest
-    {
-        $getAllHeaders = function_exists('getallheaders') ? 'getallheaders' : function ($server) {
-            $headers = [];
-            foreach ($server as $name => $value) {
-                if (substr($name, 0, 5) == 'HTTP_') {
-                    $name = str_replace(
-                        ' ',
-                        '-',
-                        ucwords(
-                            strtolower(
-                                str_replace(
-                                    '_',
-                                    ' ',
-                                    substr($name, 5)
-                                )
-                            )
-                        )
-                    );
-
-                    $headers[$name] = $value;
-                }
-            }
-
-            return $headers;
-        };
-
-        $headers = call_user_func($getAllHeaders, $server ?? $_SERVER);
-
-        return new static(
-            $_SERVER,
-            $_FILES,
-            $_SERVER['REQUEST_URI'],
-            $_SERVER['REQUEST_METHOD'],
-            'php://input',
-            $headers,
-            $_COOKIE,
-            $_GET,
-            $_POST,
-            $_SERVER['SERVER_PROTOCOL']
-        );
     }
 }
