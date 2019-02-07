@@ -10,6 +10,8 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
+
 abstract class Message
 {
     /**
@@ -32,11 +34,23 @@ abstract class Message
      *
      * @param string|resource|Stream $body Corpo da mensagem.
      * @param array $headers Lista de cabeçalhos.
+     * @throws InvalidArgumentException Quando o tipo de $body é inválido.
+     * @throws InvalidArgumentException Quando o valor de $headers é inválido.
      */
     protected function __construct($body = 'php://memory', $headers = [])
     {
-        $this->setBody($body, 'wb+');
-        $this->setHeaders($headers);
+        if (false === $this->setBody($body, 'wb+')) {
+            throw new InvalidArgumentException(sprintf(
+                "Tipo %s inválido para o corpo da mensagem",
+                is_object($body) ? get_class($body) : gettype($body)
+            ));
+        }
+
+        if (false === $this->setHeaders($headers)) {
+            throw new InvalidArgumentException(
+                'Valor de $headers é inválido para definir os cabeçalhos da mensagem'
+            );
+        }
     }
 
     /**

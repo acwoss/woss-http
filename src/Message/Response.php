@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
+
 class Response extends Message
 {
     /**
@@ -99,11 +101,19 @@ class Response extends Message
      * @param string|resource|Stream $body Corpo da resposta.
      * @param int $status Código da resposta.
      * @param array $headers Lista de cabeçalhos da resposta.
+     * @throws InvalidArgumentException Quando falha em inicializar a mensagem.
+     * @throws InvalidArgumentException Quando o status da resposta é inválido.
      */
     public function __construct($body = 'php://memory', $status = 200, $headers = [])
     {
         parent::__construct($body, $headers);
-        $this->setStatus($status);
+
+        if (false === $this->setStatus($status)) {
+            throw new InvalidArgumentException(sprintf(
+                "Status da resposta inválido: %s. Esperado inteiro entre 100 e 600",
+                $status
+            ));
+        }
     }
 
     /**

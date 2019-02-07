@@ -10,6 +10,8 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
+
 class Request extends Message
 {
     /**
@@ -34,13 +36,27 @@ class Request extends Message
      * @param string $method Método da requisição.
      * @param string|resource|Stream $body Corpo da requisição.
      * @param array $headers Headers Lista de cabeçalhos da requisição.
+     * @throws InvalidArgumentException Quando falha em inicializar a mensagem.
+     * @throws InvalidArgumentException Quando o método da requisição é inválido.
+     *
      */
     public function __construct($uri = '', $method = 'GET', $body = 'php://temp', $headers = [])
     {
         parent::__construct($body, $headers);
 
-        $this->setMethod($method);
-        $this->setUri($uri);
+        if (false === $this->setMethod($method)) {
+            throw new InvalidArgumentException(sprintf(
+                "Método %s inválido.",
+                $method
+            ));
+        }
+
+        if (false === $this->setUri($uri)) {
+            throw new InvalidArgumentException(sprintf(
+                "Tipo da URI inválido. Era esperado string ou Woss\\Http\\Message\\Uri, recebido %s",
+                is_object($uri) ? get_class($uri) : gettype($uri)
+            ));
+        }
 
         if (!$this->hasHeader('Host') && $this->uri->getHost() !== '') {
             $this->setHeader('Host', $this->getHostFromUri());

@@ -11,13 +11,11 @@ declare(strict_types=1);
 namespace Woss\Http\Server;
 
 use InvalidArgumentException;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
 use Traversable;
+use Woss\Http\Message\Request;
+use Woss\Http\Message\Response;
 
-class Pipeline implements RequestHandlerInterface
+class Pipeline
 {
     /**
      * @var array|Traversable
@@ -28,41 +26,57 @@ class Pipeline implements RequestHandlerInterface
      * Cria uma nova pipeline para lidar com uma requisição HTTP.
      *
      * @param $handlers array|Traversable Conjunto de manipuladores HTTP
-     * @throws InvalidArgumentException Quando o conjunto de entrada não é iterável ou está vazio
+     * @throws InvalidArgumentException Quando $handlers não é iterável ou está vazio
      */
     public function __construct($handlers)
     {
-        if (!is_iterable($handlers) || count($handlers) === 0) {
+        if (false === $this->setHandlers($handlers)) {
             throw new InvalidArgumentException('$handlers precisa ser um iterável não vazio');
         }
-
-        $this->handlers = $handlers;
     }
 
     /**
-     * {@inheritdoc}
+     * Define a lista de manipuladores HTTP.
+     *
+     * @param array|Traversable $handlers Conjunto de manipuladores HTTP
+     * @return bool Verdadeiro em caso de sucesso, falso caso contrário.
      */
-    public function handle(ServerRequestInterface $request): ResponseInterface
+    protected function setHandlers($handlers): bool
+    {
+        if (!is_iterable($handlers) || count($handlers) === 0) {
+            return false;
+        }
+
+        $this->handlers = $handlers;
+
+        return true;
+    }
+
+    /**
+     * Processa a requisição a partir dos manipuladores HTTP gerando uma resposta.
+     *
+     * @param Request $request Requisição de entrada.
+     * @return Response|null Resposta gerada pelos manipuladores HTTP.
+     */
+    public function handle(Request $request): ?Response
     {
         $handler = current($this->handlers);
 
         if (!(
-            $handler instanceof RequestHandlerInterface ||
-            $handler instanceof MiddlewareInterface ||
-            is_callable($handler)
+            method_exists($handler, 'handle')
+            || method_exists($handler, 'process')
+            || is_callable($handler)
         )) {
-            throw new InvalidArgumentException(
-                '$handler precisa ser RequestHandlerInterface, MiddlewareInterface ou um objeto chamável'
-            );
+            return null;
         }
 
         next($this->handlers);
 
-        if ($handler instanceof RequestHandlerInterface) {
+        if (method_exists($handler, 'handle')) {
             return $handler->handle($request);
         }
 
-        if ($handler instanceof MiddlewareInterface) {
+        if (method_exists($handler, 'process')) {
             return $handler->process($request, $this);
         }
 

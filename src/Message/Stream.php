@@ -22,10 +22,16 @@ class Stream
      *
      * @param string|resource $stream Conteúdo ou arquivo para se gerar a Stream.
      * @param string $mode Modo que será aberto a Stream.
+     * @throws \InvalidArgumentException Quando o tipo de $stream é inválido.
      */
     public function __construct($stream, $mode = 'r')
     {
-        $this->setResource($stream, $mode);
+        if (false === $this->setResource($stream, $mode)) {
+            throw new \InvalidArgumentException(sprintf(
+                "Tipo inválido: %s. Esperado string ou resource",
+                is_object($stream) ? get_class($stream) : gettype($stream)
+            ));
+        }
     }
 
     /**

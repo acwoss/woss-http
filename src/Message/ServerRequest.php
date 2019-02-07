@@ -10,6 +10,8 @@ declare(strict_types=1);
 
 namespace Woss\Http\Message;
 
+use InvalidArgumentException;
+
 class ServerRequest extends Request
 {
     /**
@@ -55,6 +57,13 @@ class ServerRequest extends Request
      * @param array $queryParams Lista de parâmetros de busca da requisição.
      * @param array|null $parsedBody Corpo da requisição já processado.
      * @param string $protocol Versão do protocolo da requisição.
+     * @throws InvalidArgumentException Quando a inicialização da requisição falhar.
+     * @throws InvalidArgumentException Quando o valor dos parâmetros do servidor for inválido.
+     * @throws InvalidArgumentException Quando o valor dos arquivos enviados for inválido.
+     * @throws InvalidArgumentException Quando o valor dos cookies for inválido.
+     * @throws InvalidArgumentException Quando o valor dos parâmetros de busca for inválido.
+     * @throws InvalidArgumentException Quando o valor do corpo processado da requisição for inválido.
+     * @throws InvalidArgumentException Quando o valor da versão do protocolo for inválido.
      */
     public function __construct(
         $serverParams = [],
@@ -71,12 +80,42 @@ class ServerRequest extends Request
     {
         parent::__construct($uri, $method, $body, $headers);
 
-        $this->setServerParams($serverParams);
-        $this->setUploadedFiles($uploadedFiles);
-        $this->setCookieParams($cookies);
-        $this->setQueryParams($queryParams);
-        $this->setParsedBody($parsedBody);
-        $this->setProtocolVersion($protocol);
+        if (false === $this->setServerParams($serverParams)) {
+            throw new InvalidArgumentException(
+                'Valor de $serverParams inválido para criar uma requisição'
+            );
+        }
+
+        if (false === $this->setUploadedFiles($uploadedFiles)) {
+            throw new InvalidArgumentException(
+                'Valor de $uploadedFiles inválido para criar uma requisição'
+            );
+        }
+
+        if (false === $this->setCookieParams($cookies)) {
+            throw new InvalidArgumentException(
+                'Valor de $cookies inválido para criar uma requisição'
+            );
+        }
+
+        if (false === $this->setQueryParams($queryParams)) {
+            throw new InvalidArgumentException(
+                'Valor de $queryParams inválido para criar uma requisição'
+            );
+        }
+
+        if (false === $this->setParsedBody($parsedBody)) {
+            throw new InvalidArgumentException(
+                'Valor de $parsedBody inválido para criar uma requisição'
+            );
+        }
+
+        if (false === $this->setProtocolVersion($protocol)) {
+            throw new InvalidArgumentException(
+                'Valor de $protocol inválido para criar uma requisição'
+            );
+        }
+
     }
 
     /**
@@ -231,18 +270,6 @@ class ServerRequest extends Request
     {
         if (!is_array($uploadedFiles)) {
             return false;
-        }
-
-        foreach ($uploadedFiles as $key => $uploadedFile) {
-            if (is_array($uploadedFile)) {
-                foreach ($uploadedFile as $file) {
-                    if (!($file instanceof UploadedFile)) {
-                        return false;
-                    }
-                }
-            } else if (!($uploadedFile instanceof UploadedFile)) {
-                return false;
-            }
         }
 
         $this->uploadedFiles = $uploadedFiles;
@@ -433,7 +460,7 @@ class ServerRequest extends Request
 
         return new static(
             $_SERVER,
-            UploadedFile::createFromArray($_FILES),
+            $_FILES,
             $_SERVER['REQUEST_URI'],
             $_SERVER['REQUEST_METHOD'],
             'php://input',
