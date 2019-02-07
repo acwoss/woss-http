@@ -207,7 +207,7 @@ abstract class Message
      */
     public function withAddedHeader($name, $value): ?Message
     {
-        if (is_array($value)) {
+        if (!is_array($value)) {
             $value = [$value];
         }
 
