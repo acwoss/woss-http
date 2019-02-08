@@ -242,5 +242,18 @@ class Request extends Message
         return $new;
     }
 
-
+    /**
+     * Retorna a linha inicial da mensagem HTTP.
+     *
+     * @return string Linha inicial da mensagem HTTP.
+     */
+    protected function getStatusLine(): string
+    {
+        return sprintf(
+            "%s %s HTTP/%s",
+            $this->getMethod(),
+            (string)$this->getUri(),
+            $this->getProtocolVersion()
+        );
+    }
 }

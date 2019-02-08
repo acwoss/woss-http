@@ -228,4 +228,22 @@ class ResponseTest extends TestCase
 
         new Response('php://memory', 200, [$name => $value]);
     }
+
+    public function testResponseToString()
+    {
+        $content = '{"message": "Ok"}';
+
+        $body = new Stream('php://memory', 'w');
+        $body->write($content);
+
+        $response = new Response($body, 200, [
+            'Content-Type' => 'application/json',
+            'Content-Lenght' => 17
+        ]);
+
+        $expected = "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Lenght: 17\n\n{\"message\": \"Ok\"}";
+
+        $this->assertSame($expected, (string)$response);
+    }
+
 }

@@ -180,4 +180,19 @@ class Response extends Message
     {
         return $this->reasonPhrase;
     }
+
+    /**
+     * Retorna a linha inicial da mensagem HTTP.
+     *
+     * @return string Linha inicial da mensagem HTTP.
+     */
+    protected function getStatusLine(): string
+    {
+        return sprintf(
+            "HTTP/%s %s %s",
+            $this->getProtocolVersion(),
+            $this->getStatusCode(),
+            $this->getReasonPhrase()
+        );
+    }
 }

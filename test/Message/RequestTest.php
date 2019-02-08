@@ -535,4 +535,15 @@ class RequestTest extends TestCase
 
         $this->assertArrayHasKey('Host', $headers);
     }
+
+    public function testRequestToString()
+    {
+        $request = new Request('/users', 'GET', 'php://memory', [
+            'X-Foo' => 'foo'
+        ]);
+
+        $expected = "GET /users HTTP/1.1\nX-Foo: foo\n";
+
+        $this->assertSame($expected, (string)$request);
+    }
 }

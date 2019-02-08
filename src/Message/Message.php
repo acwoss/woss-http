@@ -336,4 +336,35 @@ abstract class Message
 
         return $new;
     }
+
+    /**
+     * Retorna a linha inicial da mensagem HTTP.
+     *
+     * @return string Linha inicial da mensagem HTTP.
+     */
+    abstract protected function getStatusLine(): string;
+
+    /**
+     * Retorna a mensagem HTTP como string.
+     *
+     * @return string Mensagem HTTP.
+     */
+    public function __toString(): string
+    {
+        $message = $this->getStatusLine() . PHP_EOL;
+
+        foreach ($this->headers as $header => $value) {
+            $message .= sprintf("%s: %s\n", $header, $this->getHeaderLine($header));
+        }
+
+        $body = (string)$this->getBody();
+
+        if ($body) {
+            $message .= PHP_EOL;
+            $message .= $body;
+
+        }
+
+        return $message;
+    }
 }
